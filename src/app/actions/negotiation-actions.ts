@@ -64,8 +64,10 @@ export async function submitNegotiationRequestAction(
 
     const deliveryDate = requestedDeliveryDate ? new Date(requestedDeliveryDate) : null;
 
+    const commentsList = Array.isArray(comments) ? comments : [];
+
     // Filter non-empty comments or counter discounts
-    const validComments = comments.filter(
+    const validComments = commentsList.filter(
       (c) =>
         c.commentText?.trim() ||
         (c.counterDiscountPercent !== undefined && !isNaN(c.counterDiscountPercent))
