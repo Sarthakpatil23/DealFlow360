@@ -4,6 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { calculateLineDiscountLimit } from "@/lib/business-logic/discount-limits";
+import { calculateBlendedRiskScore } from "@/lib/business-logic/blended-risk-score";
+import {
+  RiskLevel,
+  QuotationStage,
+  ApprovalStepRole,
+  ApprovalStepStatus,
+  AuditAction,
+  SubscriptionStatus,
+  RecurringCycle,
+  InvoiceType,
+  InvoiceStatus,
+} from "@prisma/client";
 
 export interface LineItemData {
   id?: string;
@@ -344,17 +356,119 @@ export async function submitQuotation(idOrDisplayCode: string) {
       where: {
         OR: [{ id: idOrDisplayCode }, { displayCode: idOrDisplayCode }],
       },
+      include: {
+        customer: true,
+        orderLines: {
+          include: { product: true },
+        },
+      },
     });
 
     if (!q) {
       return { success: false, error: "Quotation not found" };
     }
 
+    // 1. Determine actor (sales rep from session or ownerRep)
+    let actorUserId = q.ownerRepId;
+    try {
+      const session = await auth();
+      if (session?.user?.id) actorUserId = session.user.id;
+    } catch {
+      // Ignored outside Next.js request context
+    }
+
+    // 2. Evaluate Blended Discount Risk Score
+    const linesToScore = q.orderLines.map((line) => ({
+      category: line.product.category,
+      discountPercent: Number(line.discountPercent) || 0,
+    }));
+
+    const riskResult = await calculateBlendedRiskScore(
+      q.customer.tier,
+      linesToScore
+    );
+
+    // 3. Auto-approve if LOW risk, otherwise route to approval chain
+    if (riskResult.riskLevel === RiskLevel.LOW) {
+      // Auto-approve: directly clears all approvals
+      await prisma.quotation.update({
+        where: { id: q.id },
+        data: {
+          stage: QuotationStage.APPROVED,
+          blendedRiskLevel: RiskLevel.LOW,
+          lastActivityAt: new Date(),
+        },
+      });
+
+      await prisma.auditLogEntry.create({
+        data: {
+          quotationId: q.id,
+          actorUserId,
+          action: AuditAction.APPROVED,
+          note: "Auto-approved: all discounts within limits (LOW risk).",
+        },
+      });
+
+      try {
+        revalidatePath(`/quotations/${q.displayCode}`);
+        revalidatePath(`/quotations/${q.id}`);
+        revalidatePath("/quotations");
+        revalidatePath("/approvals");
+        revalidatePath("/dashboard");
+      } catch {}
+
+      return {
+        success: true,
+        riskLevel: "LOW",
+        stage: "APPROVED",
+        message: `Quotation ${q.displayCode} auto-approved! Discounts are within ${q.customer.tier} tier limits.`,
+      };
+    }
+
+    // 4. MEDIUM or HIGH risk: Generate required approval chain steps
     await prisma.quotation.update({
       where: { id: q.id },
       data: {
-        stage: "PENDING_APPROVAL",
+        stage: QuotationStage.PENDING_APPROVAL,
+        blendedRiskLevel: riskResult.riskLevel,
         lastActivityAt: new Date(),
+      },
+    });
+
+    // Remove old pending approval steps if resubmitting
+    await prisma.approvalStep.deleteMany({
+      where: { quotationId: q.id },
+    });
+
+    // Step 1: Sales Manager is always required
+    await prisma.approvalStep.create({
+      data: {
+        quotationId: q.id,
+        stepOrder: 1,
+        requiredRole: ApprovalStepRole.SALES_MANAGER,
+        status: ApprovalStepStatus.PENDING,
+      },
+    });
+
+    // Step 2: Finance is additionally required for HIGH risk
+    if (riskResult.riskLevel === RiskLevel.HIGH) {
+      await prisma.approvalStep.create({
+        data: {
+          quotationId: q.id,
+          stepOrder: 2,
+          requiredRole: ApprovalStepRole.FINANCE,
+          status: ApprovalStepStatus.PENDING,
+        },
+      });
+    }
+
+    // Log the submission into immutable Audit Trail
+    await prisma.auditLogEntry.create({
+      data: {
+        quotationId: q.id,
+        actorUserId,
+        action: AuditAction.SUBMITTED,
+        note: `Submitted with ${riskResult.riskLevel} risk (+${riskResult.totalOveragePoints} overage points across lines).`,
       },
     });
 
@@ -362,18 +476,275 @@ export async function submitQuotation(idOrDisplayCode: string) {
       revalidatePath(`/quotations/${q.displayCode}`);
       revalidatePath(`/quotations/${q.id}`);
       revalidatePath("/quotations");
-      revalidatePath("/dashboard");
       revalidatePath("/approvals");
-    } catch {
-      // Ignored outside Next.js request context
-    }
+      revalidatePath("/dashboard");
+    } catch {}
 
     return {
       success: true,
-      message: `Quotation ${q.displayCode} submitted for approval.`,
+      riskLevel: riskResult.riskLevel,
+      stage: "PENDING_APPROVAL",
+      message: `Quotation ${q.displayCode} submitted for ${
+        riskResult.riskLevel === RiskLevel.HIGH
+          ? "Sales Manager & Finance"
+          : "Sales Manager"
+      } approval (${riskResult.riskLevel} risk).`,
     };
   } catch (err: any) {
     console.error("Error submitting quotation:", err);
     return { success: false, error: err.message || "Failed to submit quotation" };
   }
 }
+
+/**
+ * Generates next sequential invoice code (e.g. INV-1044).
+ */
+export async function generateNextInvoiceCode(): Promise<string> {
+  const invoices = await prisma.invoice.findMany({
+    select: { displayCode: true },
+  });
+
+  let maxNum = 1040;
+  for (const inv of invoices) {
+    const match = inv.displayCode.match(/INV-(\d+)/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNum) maxNum = num;
+    }
+  }
+
+  return `INV-${maxNum + 1}`;
+}
+
+/**
+ * Confirms a quotation (by customer in portal or by sales rep).
+ *
+ * Implements:
+ * - Step 28: Auto re-approval if final terms exceed limits.
+ * - Step 22: Auto-creates Subscription records for recurring order lines.
+ * - Step 21/25: Auto-creates Fulfillment records for physical order lines.
+ */
+export async function confirmQuotationAction(
+  idOrCode: string,
+  actorUserId?: string
+): Promise<{
+  success: boolean;
+  reapprovalRequired?: boolean;
+  stage?: string;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const q = await prisma.quotation.findFirst({
+      where: {
+        OR: [{ id: idOrCode }, { displayCode: idOrCode }],
+      },
+      include: {
+        customer: true,
+        orderLines: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    if (!q) {
+      return { success: false, error: "Quotation not found" };
+    }
+
+    // Resolve actor
+    let resolvedActorId = actorUserId;
+    if (!resolvedActorId) {
+      const session = await auth();
+      if (session?.user?.id) {
+        resolvedActorId = session.user.id;
+      } else {
+        const fallbackUser = await prisma.user.findFirst();
+        resolvedActorId = fallbackUser?.id || q.ownerRepId;
+      }
+    }
+
+    // STEP 28: Check if final terms violate limits (Auto re-approval check)
+    const discountItems = q.orderLines.map((line) => ({
+      category: line.product.category,
+      discountPercent: Number(line.discountPercent),
+    }));
+
+    const riskResult = await calculateBlendedRiskScore(q.customer.tier, discountItems);
+
+    // If final terms are over-limit (MEDIUM or HIGH) and quotation wasn't previously approved for this:
+    if (riskResult.riskLevel !== RiskLevel.LOW && q.stage !== QuotationStage.APPROVED) {
+      await prisma.quotation.update({
+        where: { id: q.id },
+        data: {
+          stage: QuotationStage.PENDING_APPROVAL,
+          blendedRiskLevel: riskResult.riskLevel,
+          lastActivityAt: new Date(),
+        },
+      });
+
+      // Clear existing and set up fresh approval steps
+      await prisma.approvalStep.deleteMany({
+        where: { quotationId: q.id },
+      });
+
+      await prisma.approvalStep.create({
+        data: {
+          quotationId: q.id,
+          stepOrder: 1,
+          requiredRole: ApprovalStepRole.SALES_MANAGER,
+          status: ApprovalStepStatus.PENDING,
+        },
+      });
+
+      if (riskResult.riskLevel === RiskLevel.HIGH) {
+        await prisma.approvalStep.create({
+          data: {
+            quotationId: q.id,
+            stepOrder: 2,
+            requiredRole: ApprovalStepRole.FINANCE,
+            status: ApprovalStepStatus.PENDING,
+          },
+        });
+      }
+
+      await prisma.auditLogEntry.create({
+        data: {
+          quotationId: q.id,
+          actorUserId: resolvedActorId,
+          action: AuditAction.SUBMITTED,
+          note: `Confirmation halted: Final agreed terms exceeded limits (+${riskResult.totalOveragePoints}pt). Auto re-entered ${riskResult.riskLevel} approval chain.`,
+        },
+      });
+
+      revalidateAllQuotationPaths(q);
+
+      return {
+        success: true,
+        reapprovalRequired: true,
+        stage: "PENDING_APPROVAL",
+        message: `Final terms exceed discount limits. Quotation automatically re-entered the approval flow (${riskResult.riskLevel} risk).`,
+      };
+    }
+
+    // Terms are within limits or already approved: Move to CONFIRMED
+    await prisma.quotation.update({
+      where: { id: q.id },
+      data: {
+        stage: QuotationStage.CONFIRMED,
+        lastActivityAt: new Date(),
+      },
+    });
+
+    await prisma.auditLogEntry.create({
+      data: {
+        quotationId: q.id,
+        actorUserId: resolvedActorId,
+        action: AuditAction.APPROVED,
+        note: `Quotation confirmed as final order. Ready for fulfillment and billing.`,
+      },
+    });
+
+    // STEP 22: Auto-create Subscription records for subscription products
+    for (const line of q.orderLines) {
+      if (line.product.isSubscription) {
+        // Check if subscription already exists for this order line
+        const existingSub = await prisma.subscription.findFirst({
+          where: {
+            customerId: q.customerId,
+            originatingOrderLineId: line.id,
+          },
+        });
+
+        if (!existingSub) {
+          const cycleDays =
+            line.product.recurringCycle === RecurringCycle.YEARLY
+              ? 365
+              : line.product.recurringCycle === RecurringCycle.QUARTERLY
+              ? 90
+              : 30;
+
+          const nextBill = new Date();
+          nextBill.setDate(nextBill.getDate() + cycleDays);
+
+          const netPrice =
+            Number(line.unitPrice) *
+            (1 - Number(line.discountPercent) / 100) *
+            line.quantity;
+
+          const createdSub = await prisma.subscription.create({
+            data: {
+              customerId: q.customerId,
+              quotationId: q.id,
+              originatingOrderLineId: line.id,
+              planName: line.product.name,
+              cycle: line.product.recurringCycle || RecurringCycle.MONTHLY,
+              pricePerCycle: netPrice,
+              nextBillDate: nextBill,
+              status: SubscriptionStatus.ACTIVE,
+            },
+          });
+
+          // Generate first recurring cycle invoice
+          const invCode = await generateNextInvoiceCode();
+          await prisma.invoice.create({
+            data: {
+              displayCode: invCode,
+              customerId: q.customerId,
+              quotationId: q.id,
+              subscriptionId: createdSub.id,
+              type: InvoiceType.RECURRING,
+              amount: netPrice,
+              status: InvoiceStatus.UNPAID,
+              dueDate: nextBill,
+            },
+          });
+        }
+      }
+    }
+
+    // Ensure Fulfillment record exists for any physical products
+    const hasPhysicalLines = q.orderLines.some((l) => !l.product.isSubscription);
+    if (hasPhysicalLines) {
+      const existingFulfillment = await prisma.fulfillment.findUnique({
+        where: { quotationId: q.id },
+      });
+
+      if (!existingFulfillment) {
+        await prisma.fulfillment.create({
+          data: {
+            quotationId: q.id,
+          },
+        });
+      }
+    }
+
+    revalidateAllQuotationPaths(q);
+
+    return {
+      success: true,
+      reapprovalRequired: false,
+      stage: "CONFIRMED",
+      message: `Quotation ${q.displayCode} confirmed successfully! Order is now active.`,
+    };
+  } catch (err: any) {
+    console.error("Error confirming quotation:", err);
+    return { success: false, error: err.message || "Failed to confirm quotation" };
+  }
+}
+
+function revalidateAllQuotationPaths(q: { id: string; displayCode: string }) {
+  try {
+    revalidatePath(`/quotations/${q.displayCode}`);
+    revalidatePath(`/quotations/${q.id}`);
+    revalidatePath("/quotations");
+    revalidatePath("/approvals");
+    revalidatePath("/subscriptions");
+    revalidatePath("/invoices");
+    revalidatePath("/fulfillment");
+    revalidatePath("/dashboard");
+    revalidatePath("/portal");
+  } catch {}
+}
+

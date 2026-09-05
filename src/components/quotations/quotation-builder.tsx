@@ -314,11 +314,32 @@ export function QuotationBuilder({
     const net = gross - totalDiscount;
     const avgDiscountPercent = gross > 0 ? (totalDiscount / gross) * 100 : 0;
 
+    // Calculate estimated margin across lines (with specific boosters for upsell lines)
+    let estimatedMargin = 0;
+    for (const line of lines) {
+      const lineGross = line.unitPrice * line.quantity;
+      const lineNet = lineGross * (1 - line.discountPercent / 100);
+      if (line.isUpsellAdd) {
+        if (line.productName.toLowerCase().includes("mouse")) {
+          estimatedMargin += 18 * line.quantity;
+        } else if (line.productName.toLowerCase().includes("care plan")) {
+          estimatedMargin += 46 * line.quantity;
+        } else if (line.productName.toLowerCase().includes("docking")) {
+          estimatedMargin += 28 * line.quantity;
+        } else {
+          estimatedMargin += lineNet * 0.40;
+        }
+      } else {
+        estimatedMargin += lineNet * 0.30;
+      }
+    }
+
     return {
       gross,
       totalDiscount,
       net,
       avgDiscountPercent,
+      estimatedMargin,
       anyOverLimit,
       maxOverage,
     };
@@ -900,7 +921,7 @@ export function QuotationBuilder({
       {/* Financial Summary & Bottom Actions Bar */}
       <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-xs flex flex-col md:flex-row items-center justify-between gap-6">
         {/* Summary Breakdown */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 w-full md:w-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-6 w-full md:w-auto">
           <div>
             <span className="text-[11px] font-medium text-muted-foreground block">Gross Subtotal</span>
             <span className="font-mono text-base font-semibold text-foreground">
@@ -916,7 +937,14 @@ export function QuotationBuilder({
           </div>
 
           <div>
-            <span className="text-[11px] font-medium text-muted-foreground block">Average Discount</span>
+            <span className="text-[11px] font-medium text-muted-foreground block">Estimated Margin</span>
+            <span className="font-mono text-base font-semibold text-sky-600 dark:text-sky-400">
+              +${financialTotals.estimatedMargin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          <div>
+            <span className="text-[11px] font-medium text-muted-foreground block">Avg Discount</span>
             <span className="font-mono text-base font-semibold text-foreground">
               {financialTotals.avgDiscountPercent.toFixed(1)}%
             </span>

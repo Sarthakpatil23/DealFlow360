@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/actions/auth-actions";
@@ -155,7 +156,7 @@ export default async function CustomerPortalPage() {
                 }, 0);
 
                 return (
-                  <div key={q.id} className="py-3 flex items-center justify-between text-xs">
+                  <div key={q.id} className="py-3 flex items-center justify-between text-xs hover:bg-neutral-50 p-2 rounded-lg transition-colors">
                     <div>
                       <span className="font-semibold text-neutral-900 font-mono">
                         {q.displayCode}
@@ -164,13 +165,19 @@ export default async function CustomerPortalPage() {
                         {q.stage}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                       <span className="font-semibold text-neutral-900">
                         ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                       <span className="text-neutral-400 text-[11px]">
                         {new Date(q.createdAt).toLocaleDateString()}
                       </span>
+                      <Link
+                        href={`/portal/${q.id}`}
+                        className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline"
+                      >
+                        Open Proposal <ArrowRight className="h-3 w-3" />
+                      </Link>
                     </div>
                   </div>
                 );

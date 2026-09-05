@@ -1,49 +1,49 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { TopNav } from "@/components/navigation/top-nav";
+import { getApprovalDetailData } from "@/lib/approval-data";
+import { ApprovalDetailView } from "@/components/approvals/approval-detail-view";
 
 interface PageProps {
   params: { id: string };
 }
 
-export default function ApprovalDetailPage({ params }: PageProps) {
+export const dynamic = "force-dynamic";
+
+export default async function ApprovalDetailPage({ params }: PageProps) {
+  const data = await getApprovalDetailData(params.id);
+
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-[#171717] dark:text-[#ededed] flex flex-col font-sans transition-colors duration-150">
+        <TopNav />
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+          <div className="bg-white dark:bg-[#0a0a0a] border border-[#ebebeb] dark:border-[#262626] rounded-xl p-8 text-center max-w-md mx-auto">
+            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+              Quotation Not Found
+            </h2>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-2">
+              Could not find quotation matching &quot;{params.id}&quot;.
+            </p>
+            <Link
+              href="/approvals"
+              className="mt-4 inline-block px-4 py-2 bg-neutral-900 text-white dark:bg-white dark:text-black rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity"
+            >
+              Back to Approvals Queue
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-[#171717] dark:text-[#ededed] flex flex-col font-sans transition-colors duration-150">
       <TopNav />
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <div className="flex items-center justify-between border-b border-[#ebebeb] dark:border-[#262626] pb-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1 text-xs text-[#737373] dark:text-[#a1a1a1]">
-              <Link href="/dashboard" className="hover:underline">
-                Dashboard
-              </Link>
-              <span>/</span>
-              <Link href="/approvals" className="hover:underline">
-                Approvals
-              </Link>
-              <span>/</span>
-              <span>{params.id}</span>
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-[#171717] dark:text-[#ededed]">
-              Screen 6 — Approval Detail ({params.id})
-            </h1>
-            <p className="text-sm text-[#737373] dark:text-[#a1a1a1] mt-1">
-              Approval audit trail, blended risk score breakdown, and approver actions
-            </p>
-          </div>
-          <Link
-            href="/dashboard"
-            className="border border-[#ebebeb] dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-[#171717] dark:text-[#ededed] hover:bg-neutral-50 dark:hover:bg-[#171717] px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            ← Back to Dashboard
-          </Link>
-        </div>
-
-        <div className="bg-white dark:bg-[#0a0a0a] border border-[#ebebeb] dark:border-[#262626] rounded-xl p-6 text-sm text-[#737373] dark:text-[#a1a1a1]">
-          <p>
-            Approval detail placeholder for quotation <strong>{params.id}</strong>.
-          </p>
-        </div>
+        <ApprovalDetailView initialData={data} />
       </main>
     </div>
   );
 }
+

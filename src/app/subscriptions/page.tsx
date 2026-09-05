@@ -1,33 +1,56 @@
-import Link from "next/link";
 import { TopNav } from "@/components/navigation/top-nav";
+import { prisma } from "@/lib/prisma";
+import {
+  SubscriptionsListView,
+  SubscriptionItem,
+  CustomerOption,
+} from "@/components/subscriptions/subscriptions-list-view";
 
-export default function SubscriptionsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SubscriptionsPage() {
+  const [subscriptions, customers] = await Promise.all([
+    prisma.subscription.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        customer: true,
+        quotation: true,
+      },
+    }),
+    prisma.customer.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, tier: true },
+    }),
+  ]);
+
+  const formattedSubscriptions: SubscriptionItem[] = subscriptions.map((s) => ({
+    id: s.id,
+    customerId: s.customerId,
+    customerName: s.customer.name,
+    customerTier: s.customer.tier,
+    planName: s.planName,
+    cycle: s.cycle,
+    pricePerCycle: Number(s.pricePerCycle),
+    nextBillDate: s.nextBillDate ? s.nextBillDate.toLocaleDateString() : null,
+    status: s.status as "ACTIVE" | "PAUSED" | "CANCELLED",
+    originatingQuoteCode: s.quotation?.displayCode,
+    createdAt: s.createdAt.toLocaleDateString(),
+  }));
+
+  const customerOptions: CustomerOption[] = customers.map((c) => ({
+    id: c.id,
+    name: c.name,
+    tier: c.tier,
+  }));
+
   return (
     <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-[#171717] dark:text-[#ededed] flex flex-col font-sans transition-colors duration-150">
       <TopNav />
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <div className="flex items-center justify-between border-b border-[#ebebeb] dark:border-[#262626] pb-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-[#171717] dark:text-[#ededed]">
-              Screen 9 — Subscriptions
-            </h1>
-            <p className="text-sm text-[#737373] dark:text-[#a1a1a1] mt-1">
-              Active, paused, and cancelled recurring plans across all accounts
-            </p>
-          </div>
-          <Link
-            href="/dashboard"
-            className="border border-[#ebebeb] dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-[#171717] dark:text-[#ededed] hover:bg-neutral-50 dark:hover:bg-[#171717] px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            ← Back to Dashboard
-          </Link>
-        </div>
-
-        <div className="bg-white dark:bg-[#0a0a0a] border border-[#ebebeb] dark:border-[#262626] rounded-xl p-6 text-sm text-[#737373] dark:text-[#a1a1a1]">
-          <p>
-            Subscriptions placeholder for navigation.
-          </p>
-        </div>
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <SubscriptionsListView
+          initialSubscriptions={formattedSubscriptions}
+          customers={customerOptions}
+        />
       </main>
     </div>
   );
