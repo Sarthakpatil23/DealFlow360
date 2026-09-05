@@ -2,7 +2,7 @@
 
 Small steps, in order. Each one should be testable before moving to the next.
 
-- [ ] 1. **Scaffold Next.js app** (TypeScript, Tailwind, App Router). Test: `npm run dev` loads a blank page.
+- [x] 1. **Scaffold Next.js app** (TypeScript, Tailwind, App Router). Test: `npm run dev` loads a blank page.
 - [x] 2. **Init Prisma, add schema.prisma** (from `schema.md`). Test: `npx prisma format` runs with no errors.
 - [x] 3. **Setup local Postgres via Docker.** Test: `docker ps` shows the container running.
 - [x] 4. **Run first migration** (`prisma migrate dev --name init`). Test: tables exist, check with `npx prisma studio`.
