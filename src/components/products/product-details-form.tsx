@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ProductDetailData } from "@/lib/products-data";
 import { RecurringCycle } from "@prisma/client";
+import { saveProductAction, VariantData, PriceListData } from "@/app/actions/product-actions";
 
 interface ProductDetailsFormProps {
   initialData: ProductDetailData;
@@ -11,6 +13,9 @@ interface ProductDetailsFormProps {
 }
 
 export function ProductDetailsForm({ initialData, isNew = false }: ProductDetailsFormProps) {
+  const router = useRouter();
+
+  // Form Fields
   const [name, setName] = useState(initialData.name);
   const [category, setCategory] = useState<"HARDWARE" | "SERVICES" | "SUBSCRIPTION">(
     initialData.category
@@ -24,7 +29,26 @@ export function ProductDetailsForm({ initialData, isNew = false }: ProductDetail
     initialData.recurringCycle || RecurringCycle.MONTHLY
   );
   const [quantityOnHand, setQuantityOnHand] = useState(initialData.quantityOnHand.toString());
+
+  // Variants & PriceLists State
+  const [variants, setVariants] = useState<VariantData[]>(initialData.variants || []);
+  const [priceLists, setPriceLists] = useState<PriceListData[]>(initialData.priceLists || []);
+
+  // UI state for adding new variant / pricelist
+  const [isAddingVariant, setIsAddingVariant] = useState(false);
+  const [newVariantAttr, setNewVariantAttr] = useState("");
+  const [newVariantValues, setNewVariantValues] = useState("");
+  const [newVariantExtra, setNewVariantExtra] = useState("0");
+
+  const [isAddingPriceList, setIsAddingPriceList] = useState(false);
+  const [newPlTier, setNewPlTier] = useState("Bronze");
+  const [newPlCurrency, setNewPlCurrency] = useState("USD");
+  const [newPlRule, setNewPlRule] = useState("Price, no adjustment");
+
+  // Submission State
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubscriptionToggle = (val: boolean) => {
     setIsSubscription(val);
@@ -37,14 +61,94 @@ export function ProductDetailsForm({ initialData, isNew = false }: ProductDetail
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAddVariant = () => {
+    if (!newVariantAttr.trim() || !newVariantValues.trim()) return;
+    setVariants((prev) => [
+      ...prev,
+      {
+        attributeName: newVariantAttr.trim(),
+        values: newVariantValues.trim(),
+        extraPriceDisplay: newVariantExtra.trim() || "0",
+      },
+    ]);
+    setNewVariantAttr("");
+    setNewVariantValues("");
+    setNewVariantExtra("0");
+    setIsAddingVariant(false);
+  };
+
+  const handleRemoveVariant = (idx: number) => {
+    setVariants((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleAddPriceList = () => {
+    if (!newPlTier.trim() || !newPlCurrency.trim()) return;
+    setPriceLists((prev) => [
+      ...prev,
+      {
+        tier: newPlTier.trim(),
+        currency: newPlCurrency.trim(),
+        priceRule: newPlRule.trim() || "Price, no adjustment",
+      },
+    ]);
+    setNewPlTier("Bronze");
+    setNewPlCurrency("USD");
+    setNewPlRule("Price, no adjustment");
+    setIsAddingPriceList(false);
+  };
+
+  const handleRemovePriceList = (idx: number) => {
+    setPriceLists((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    setSavedSuccess(false);
+
+    try {
+      const res = await saveProductAction({
+        id: initialData.id,
+        name,
+        category,
+        basePrice: parseFloat(basePrice) || 0,
+        unit,
+        description,
+        taxPercent: parseFloat(taxPercent) || 0,
+        isSubscription,
+        recurringCycle: isSubscription ? recurringCycle : null,
+        quantityOnHand: parseInt(quantityOnHand, 10) || 0,
+        variants,
+        priceLists,
+      });
+
+      if (res.success) {
+        setSavedSuccess(true);
+        if (isNew && res.productId) {
+          router.push(`/products/${res.productId}`);
+        } else {
+          setTimeout(() => setSavedSuccess(false), 4000);
+        }
+      } else {
+        setErrorMessage(res.error || "Failed to save product to database.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "An unexpected error occurred while saving.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      {/* Error notification banner if any */}
+      {errorMessage && (
+        <div className="rounded-xl border border-rose-300 dark:border-rose-900/60 bg-rose-50 dark:bg-[#1f0b0e] p-4 text-xs sm:text-sm text-rose-800 dark:text-rose-200 shadow-2xs">
+          <strong>Error:</strong> {errorMessage}
+        </div>
+      )}
+
       {/* General Info Card */}
       <div className="bg-white dark:bg-[#0a0a0a] border border-[#ebebeb] dark:border-[#262626] rounded-xl p-6 sm:p-8 space-y-6 shadow-2xs transition-colors duration-150">
         <div className="border-b border-[#ebebeb] dark:border-[#262626] pb-3">
@@ -265,9 +369,69 @@ export function ProductDetailsForm({ initialData, isNew = false }: ProductDetail
 
       {/* Product Variants Table Section */}
       <div className="space-y-3">
-        <h2 className="text-base font-semibold text-[#171717] dark:text-[#ededed] tracking-tight">
-          Product Variants
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-[#171717] dark:text-[#ededed] tracking-tight">
+            Product Variants
+          </h2>
+          <button
+            type="button"
+            onClick={() => setIsAddingVariant(!isAddingVariant)}
+            className="text-xs font-medium text-[#0070f3] hover:underline dark:text-[#3291ff]"
+          >
+            {isAddingVariant ? "Cancel" : "+ Add Variant"}
+          </button>
+        </div>
+
+        {/* Inline Add Variant Form */}
+        {isAddingVariant && (
+          <div className="p-4 border border-[#ebebeb] dark:border-[#262626] rounded-xl bg-neutral-50 dark:bg-[#121212] grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[11px] font-medium text-[#737373] dark:text-[#a1a1a1] mb-1">
+                Attribute Name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Color or RAM"
+                value={newVariantAttr}
+                onChange={(e) => setNewVariantAttr(e.target.value)}
+                className="w-full rounded border border-[#ebebeb] dark:border-[#262626] bg-white dark:bg-[#1a1a1a] px-2.5 py-1.5 text-xs text-[#171717] dark:text-[#ededed]"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-[#737373] dark:text-[#a1a1a1] mb-1">
+                Values (comma-separated)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Blue, Black"
+                value={newVariantValues}
+                onChange={(e) => setNewVariantValues(e.target.value)}
+                className="w-full rounded border border-[#ebebeb] dark:border-[#262626] bg-white dark:bg-[#1a1a1a] px-2.5 py-1.5 text-xs text-[#171717] dark:text-[#ededed]"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-[#737373] dark:text-[#a1a1a1] mb-1">
+                Extra price
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 0 or +$30"
+                value={newVariantExtra}
+                onChange={(e) => setNewVariantExtra(e.target.value)}
+                className="w-full rounded border border-[#ebebeb] dark:border-[#262626] bg-white dark:bg-[#1a1a1a] px-2.5 py-1.5 text-xs text-[#171717] dark:text-[#ededed]"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={handleAddVariant}
+                className="w-full bg-[#171717] dark:bg-white text-white dark:text-[#171717] px-3 py-1.5 rounded text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors"
+              >
+                Add Variant
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="border border-[#ebebeb] dark:border-[#262626] rounded-xl bg-white dark:bg-[#0a0a0a] overflow-hidden shadow-2xs">
           <table className="w-full text-left text-sm border-collapse">
@@ -276,11 +440,12 @@ export function ProductDetailsForm({ initialData, isNew = false }: ProductDetail
                 <th className="px-6 py-3.5">Attribute</th>
                 <th className="px-6 py-3.5">Values</th>
                 <th className="px-6 py-3.5">Extra price</th>
+                <th className="px-4 py-3.5 text-right w-16">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#ebebeb] dark:divide-[#262626] text-[#171717] dark:text-[#ededed]">
-              {initialData.variants.length > 0 ? (
-                initialData.variants.map((v, idx) => (
+              {variants.length > 0 ? (
+                variants.map((v, idx) => (
                   <tr key={idx} className="hover:bg-neutral-50 dark:hover:bg-[#141414] transition-colors">
                     <td className="px-6 py-3.5 font-medium text-[#171717] dark:text-[#ededed]">
                       {v.attributeName}
@@ -291,11 +456,21 @@ export function ProductDetailsForm({ initialData, isNew = false }: ProductDetail
                     <td className="px-6 py-3.5 font-mono text-xs text-[#171717] dark:text-[#ededed]">
                       {v.extraPriceDisplay}
                     </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveVariant(idx)}
+                        className="text-xs text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 transition-colors"
+                        title="Remove variant"
+                      >
+                        ✕
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={3} className="px-6 py-4 text-center text-xs text-[#737373] dark:text-[#a1a1a1]">
+                  <td colSpan={4} className="px-6 py-4 text-center text-xs text-[#737373] dark:text-[#a1a1a1]">
                     No variants configured for this product.
                   </td>
                 </tr>
@@ -307,9 +482,71 @@ export function ProductDetailsForm({ initialData, isNew = false }: ProductDetail
 
       {/* Pricelists Table Section */}
       <div className="space-y-3">
-        <h2 className="text-base font-semibold text-[#171717] dark:text-[#ededed] tracking-tight">
-          Pricelists
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-[#171717] dark:text-[#ededed] tracking-tight">
+            Pricelists
+          </h2>
+          <button
+            type="button"
+            onClick={() => setIsAddingPriceList(!isAddingPriceList)}
+            className="text-xs font-medium text-[#0070f3] hover:underline dark:text-[#3291ff]"
+          >
+            {isAddingPriceList ? "Cancel" : "+ Add Pricelist"}
+          </button>
+        </div>
+
+        {/* Inline Add Pricelist Form */}
+        {isAddingPriceList && (
+          <div className="p-4 border border-[#ebebeb] dark:border-[#262626] rounded-xl bg-neutral-50 dark:bg-[#121212] grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[11px] font-medium text-[#737373] dark:text-[#a1a1a1] mb-1">
+                Tier
+              </label>
+              <select
+                value={newPlTier}
+                onChange={(e) => setNewPlTier(e.target.value)}
+                className="w-full rounded border border-[#ebebeb] dark:border-[#262626] bg-white dark:bg-[#1a1a1a] px-2.5 py-1.5 text-xs text-[#171717] dark:text-[#ededed]"
+              >
+                <option value="Bronze">Bronze</option>
+                <option value="Silver">Silver</option>
+                <option value="Gold">Gold</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-[#737373] dark:text-[#a1a1a1] mb-1">
+                Currency
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. USD or USD/EUR"
+                value={newPlCurrency}
+                onChange={(e) => setNewPlCurrency(e.target.value)}
+                className="w-full rounded border border-[#ebebeb] dark:border-[#262626] bg-white dark:bg-[#1a1a1a] px-2.5 py-1.5 text-xs text-[#171717] dark:text-[#ededed]"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-[#737373] dark:text-[#a1a1a1] mb-1">
+                Price Rule
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Price minus 10 percent base"
+                value={newPlRule}
+                onChange={(e) => setNewPlRule(e.target.value)}
+                className="w-full rounded border border-[#ebebeb] dark:border-[#262626] bg-white dark:bg-[#1a1a1a] px-2.5 py-1.5 text-xs text-[#171717] dark:text-[#ededed]"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={handleAddPriceList}
+                className="w-full bg-[#171717] dark:bg-white text-white dark:text-[#171717] px-3 py-1.5 rounded text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors"
+              >
+                Add Rule
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="border border-[#ebebeb] dark:border-[#262626] rounded-xl bg-white dark:bg-[#0a0a0a] overflow-hidden shadow-2xs">
           <table className="w-full text-left text-sm border-collapse">
@@ -318,11 +555,12 @@ export function ProductDetailsForm({ initialData, isNew = false }: ProductDetail
                 <th className="px-6 py-3.5">Tier</th>
                 <th className="px-6 py-3.5">Currency</th>
                 <th className="px-6 py-3.5">Price Rule</th>
+                <th className="px-4 py-3.5 text-right w-16">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#ebebeb] dark:divide-[#262626] text-[#171717] dark:text-[#ededed]">
-              {initialData.priceLists.length > 0 ? (
-                initialData.priceLists.map((p, idx) => (
+              {priceLists.length > 0 ? (
+                priceLists.map((p, idx) => (
                   <tr key={idx} className="hover:bg-neutral-50 dark:hover:bg-[#141414] transition-colors">
                     <td className="px-6 py-3.5 font-medium text-[#171717] dark:text-[#ededed]">
                       {p.tier}
@@ -333,11 +571,21 @@ export function ProductDetailsForm({ initialData, isNew = false }: ProductDetail
                     <td className="px-6 py-3.5 text-[#171717] dark:text-[#ededed]">
                       {p.priceRule}
                     </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePriceList(idx)}
+                        className="text-xs text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 transition-colors"
+                        title="Remove pricelist rule"
+                      >
+                        ✕
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={3} className="px-6 py-4 text-center text-xs text-[#737373] dark:text-[#a1a1a1]">
+                  <td colSpan={4} className="px-6 py-4 text-center text-xs text-[#737373] dark:text-[#a1a1a1]">
                     No pricelist rules configured.
                   </td>
                 </tr>
@@ -357,9 +605,38 @@ export function ProductDetailsForm({ initialData, isNew = false }: ProductDetail
       <div className="flex items-center gap-3 pt-2">
         <button
           type="submit"
-          className="bg-[#0070f3] hover:bg-[#0761d1] text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0070f3] focus:ring-offset-2"
+          disabled={isSubmitting}
+          className="bg-[#0070f3] hover:bg-[#0761d1] disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0070f3] focus:ring-offset-2 flex items-center gap-2"
         >
-          {isNew ? "Create Product" : "Save Changes"}
+          {isSubmitting && (
+            <svg
+              className="animate-spin h-4 w-4 text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8H4z"
+              ></path>
+            </svg>
+          )}
+          <span>
+            {isSubmitting
+              ? "Saving..."
+              : isNew
+              ? "Create Product"
+              : "Save Changes"}
+          </span>
         </button>
 
         <Link
@@ -371,7 +648,7 @@ export function ProductDetailsForm({ initialData, isNew = false }: ProductDetail
 
         {savedSuccess && (
           <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 animate-fade-in">
-            ✓ Product details saved successfully
+            ✓ Product details saved successfully to database
           </span>
         )}
       </div>

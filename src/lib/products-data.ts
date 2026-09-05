@@ -49,7 +49,7 @@ export async function getProductCatalogData(): Promise<{
   products: CatalogProductItem[];
 }> {
   // Canonical spec summary counts matching screen16-17.png and project.md
-  const summary: ProductCatalogSummary = {
+  let summary: ProductCatalogSummary = {
     totalProducts: "128 active, 6 archived",
     pricelists: "3 tiers, 2 Currencies",
     variants: "340 SKUs across all products",
@@ -58,18 +58,39 @@ export async function getProductCatalogData(): Promise<{
   let products: CatalogProductItem[] = [];
 
   try {
-    const dbProducts = await prisma.product.findMany({
-      include: {
-        variantAttributes: {
-          include: {
-            values: true,
+    const [dbProducts, activeCount, archivedCount, pleCount] = await Promise.all([
+      prisma.product.findMany({
+        include: {
+          variantAttributes: {
+            include: {
+              values: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.product.count({ where: { isArchived: false } }),
+      prisma.product.count({ where: { isArchived: true } }),
+      prisma.priceListEntry.count(),
+    ]);
 
     if (dbProducts.length > 0) {
+      // Calculate SKU combinations count or fall back to spec count
+      const totalSkuVariants = dbProducts.reduce(
+        (acc, p) =>
+          acc +
+          (p.variantAttributes.length > 0
+            ? p.variantAttributes.reduce((a, v) => a * Math.max(1, v.values.length), 1)
+            : 1),
+        0
+      );
+
+      summary = {
+        totalProducts: `${activeCount} active, ${archivedCount} archived`,
+        pricelists: `${pleCount > 0 ? pleCount : 3} rules, 3 tiers`,
+        variants: `${totalSkuVariants > 0 ? totalSkuVariants : 340} SKUs across all products`,
+      };
+
       products = dbProducts.map((p) => {
         // Compute variant string (e.g. 3(size), 3(color), or dash)
         let variantsDisplay = "—";
@@ -245,26 +266,34 @@ export async function getProductDetailData(productIdOrName: string): Promise<Pro
   }
 
   // Fallback canonical product (Laptop Pro 14 from Screen 17 wireframe)
-  return {
-    id: "laptop-pro-14",
-    name: "Laptop Pro 14",
-    category: "HARDWARE",
-    description: "High-performance business laptop with 14-inch retina display",
-    basePrice: 1200,
-    unit: "Each",
-    taxPercent: 15,
-    isSubscription: false,
-    recurringCycle: null,
-    quantityOnHand: 50,
-    isArchived: false,
-    variants: [
-      { attributeName: "Color", values: "Blue, Black", extraPriceDisplay: "0" },
-      { attributeName: "RAM", values: "4GB, 8GB", extraPriceDisplay: "+$30" },
-      { attributeName: "Manufacturer", values: "Dell, HP", extraPriceDisplay: "+$10/+$30" },
-    ],
-    priceLists: [
-      { tier: "Bronze", currency: "USD", priceRule: "Price, no adjustment" },
-      { tier: "Gold", currency: "USD/EUR", priceRule: "Price minus 10 percent base" },
-    ],
-  };
+  if (
+    productIdOrName.toLowerCase().includes("laptop") ||
+    productIdOrName === "laptop-pro-14" ||
+    productIdOrName === "new"
+  ) {
+    return {
+      id: "laptop-pro-14",
+      name: "Laptop Pro 14",
+      category: "HARDWARE",
+      description: "High-performance business laptop with 14-inch retina display",
+      basePrice: 1200,
+      unit: "Each",
+      taxPercent: 15,
+      isSubscription: false,
+      recurringCycle: null,
+      quantityOnHand: 50,
+      isArchived: false,
+      variants: [
+        { attributeName: "Color", values: "Blue, Black", extraPriceDisplay: "0" },
+        { attributeName: "RAM", values: "4GB, 8GB", extraPriceDisplay: "+$30" },
+        { attributeName: "Manufacturer", values: "Dell, HP", extraPriceDisplay: "+$10/+$30" },
+      ],
+      priceLists: [
+        { tier: "Bronze", currency: "USD", priceRule: "Price, no adjustment" },
+        { tier: "Gold", currency: "USD/EUR", priceRule: "Price minus 10 percent base" },
+      ],
+    };
+  }
+
+  return null;
 }
