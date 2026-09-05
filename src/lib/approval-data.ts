@@ -109,14 +109,20 @@ export async function getApprovalsListData(): Promise<ApprovalsScreenData> {
       let assignedUserName = "—";
 
       if (q.stage === QuotationStage.PENDING_APPROVAL && activeStep) {
-        assignedRole =
-          activeStep.requiredRole === ApprovalStepRole.SALES_MANAGER
-            ? "Sales Manager"
-            : "Finance";
-        assignedUserName =
-          activeStep.requiredRole === ApprovalStepRole.SALES_MANAGER
-            ? "M. Shah"
-            : "R. Iyer";
+        const hasSubsequentFinance = q.approvalSteps.some(
+          (s) => s.requiredRole === ApprovalStepRole.FINANCE && s.stepOrder > activeStep.stepOrder
+        );
+
+        if (activeStep.requiredRole === ApprovalStepRole.SALES_MANAGER && hasSubsequentFinance) {
+          assignedRole = "Sales Manager (Pass to Finance)";
+          assignedUserName = "M. Shah";
+        } else if (activeStep.requiredRole === ApprovalStepRole.SALES_MANAGER) {
+          assignedRole = "Sales Manager (Final)";
+          assignedUserName = "M. Shah";
+        } else {
+          assignedRole = "Finance Approver (Final)";
+          assignedUserName = "R. Iyer";
+        }
       } else if (q.stage === QuotationStage.APPROVED && (!q.blendedRiskLevel || q.blendedRiskLevel === "LOW")) {
         assignedRole = "Auto-Approved";
         assignedUserName = "—";
