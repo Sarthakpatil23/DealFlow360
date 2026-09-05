@@ -1,9 +1,12 @@
 import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/auth/login-form";
-import { SessionCard } from "@/components/auth/session-card";
 
-export default async function HomePage() {
+export default async function LoginPage() {
   const session = await auth();
+  if (session?.user) {
+    redirect("/");
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-[#fafafa]">
@@ -15,19 +18,11 @@ export default async function HomePage() {
           </h1>
         </div>
         <p className="text-xs text-neutral-500 max-w-sm">
-          B2B Sales Operations, Discount Governance & CPQ Platform
+          Sign in to your account
         </p>
       </header>
 
-      {session?.user ? (
-        <SessionCard user={session.user} />
-      ) : (
-        <LoginForm />
-      )}
-
-      <footer className="mt-8 text-center text-xs text-neutral-400">
-        <span>DealFlow360 Step 6 — Auth.js Credentials Provider + Bcrypt</span>
-      </footer>
+      <LoginForm />
     </main>
   );
 }
