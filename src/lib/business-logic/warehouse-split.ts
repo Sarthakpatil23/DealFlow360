@@ -1,20 +1,8 @@
-/**
- * Pure Warehouse Split Business Logic (Step 20).
- *
- * Strictly adheres to project.md Screen 8 rules:
- * 1. Look at total quantity needed for the product.
- * 2. Try to fulfill entirely from a single warehouse first, preferring the warehouse
- *    with the lowest shipping-cost weight to minimize shipments and cost.
- * 3. If no single warehouse has enough Available stock (inStock - reserved), split:
- *    pull as much as possible from the cheapest warehouse, then the next, until covered.
- * 4. Anything still short becomes a Backorder line.
- */
-
 export interface WarehouseInventory {
   warehouseId: string;
   warehouseName: string;
-  shippingCostWeight: number; // Lower weight = cheaper / preferred
-  availableStock: number;     // Strictly inStock - reserved
+  shippingCostWeight: number;
+  availableStock: number;  
 }
 
 export interface SplitLineAllocation {
@@ -34,14 +22,7 @@ export interface WarehouseSplitResult {
   allocations: SplitLineAllocation[];
 }
 
-/**
- * Calculates how to split requested units across warehouses.
- * Beginner-friendly and easy to explain step-by-step.
- */
-export function calculateWarehouseSplit(
-  requestedQuantity: number,
-  warehouses: WarehouseInventory[]
-): WarehouseSplitResult {
+export function calculateWarehouseSplit( requestedQuantity: number,warehouses: WarehouseInventory[]): WarehouseSplitResult {
   const needed = Math.max(0, Math.floor(requestedQuantity));
 
   if (needed === 0) {
@@ -54,18 +35,14 @@ export function calculateWarehouseSplit(
     };
   }
 
-  // Sort warehouses by shippingCostWeight ascending (cheapest / preferred first)
-  const sortedWarehouses = [...warehouses].sort(
-    (a, b) => a.shippingCostWeight - b.shippingCostWeight
-  );
+  //sorted by cheapest cosst of shipping
+  const sortedWarehouses = [...warehouses].sort((a, b) => a.shippingCostWeight - b.shippingCostWeight);
 
-  // STEP 1: Can ANY single warehouse fulfill 100% of the order?
-  // If yes, we pick the cheapest one that has enough stock to avoid unnecessary splitting.
-  const singleWarehouseMatch = sortedWarehouses.find(
-    (w) => w.availableStock >= needed
-  );
+  //can one full-fill the order
+  const singleWarehouseMatch = sortedWarehouses.find((w) => w.availableStock >= needed);
 
   if (singleWarehouseMatch) {
+    //final cose of shipment
     const cost = Number((needed * singleWarehouseMatch.shippingCostWeight).toFixed(2));
     return {
       requestedQuantity: needed,
@@ -85,8 +62,7 @@ export function calculateWarehouseSplit(
     };
   }
 
-  // STEP 2: No single warehouse has enough available stock.
-  // We split: take as much as possible from the cheapest warehouse, then move to the next.
+  // take as much as possible from the cheapest warehouse, then move to the next.
   let remainingNeeded = needed;
   const allocations: SplitLineAllocation[] = [];
 
@@ -111,17 +87,12 @@ export function calculateWarehouseSplit(
     }
   }
 
-  // STEP 3: Check if there is still an unfulfilled remainder.
-  // Any quantity that could NOT be fulfilled from any warehouse is marked as a Backorder.
+// not fulfilled from any warehouse is marked as a Backorder.
   const backorderedQuantity = remainingNeeded;
 
   if (backorderedQuantity > 0) {
-    // Assign backorder to the primary/first warehouse for restock tracking
-    const fallbackWarehouse = sortedWarehouses[0] || {
-      warehouseId: "unassigned",
-      warehouseName: "Primary Warehouse",
-      shippingCostWeight: 1.0,
-    };
+    // the first one in array gets that
+    const fallbackWarehouse = sortedWarehouses[0];
 
     allocations.push({
       warehouseId: fallbackWarehouse.warehouseId,
