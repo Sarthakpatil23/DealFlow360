@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import { TopNav } from "@/components/navigation/top-nav";
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
@@ -12,6 +14,13 @@ export const metadata = {
 };
 
 export default async function SalesDashboardPage() {
+  const session = await auth();
+
+  // If customer visits internal dashboard, redirect to customer portal
+  if (session?.user?.role === "CUSTOMER") {
+    redirect("/portal");
+  }
+
   const { summaryCards, recentActivities } = await getDashboardData();
 
   return (
@@ -23,12 +32,24 @@ export default async function SalesDashboardPage() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10 space-y-8">
         {/* Header Section */}
         <header className="space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#171717] dark:text-[#ededed]">
-            Sales Dashboard / Home
-          </h1>
-          <p className="text-sm text-[#737373] dark:text-[#a1a1a1]">
-            Central hub, links out to every module below
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#171717] dark:text-[#ededed]">
+                Sales Dashboard / Home
+              </h1>
+              <p className="text-sm text-[#737373] dark:text-[#a1a1a1]">
+                Central hub, links out to every module below
+              </p>
+            </div>
+            {session?.user && (
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  {session.user.name || session.user.email} ({session.user.role})
+                </span>
+              </div>
+            )}
+          </div>
         </header>
 
         {/* 3 Summary Cards Grid */}

@@ -8,8 +8,8 @@ Small steps, in order. Each one should be testable before moving to the next.
 - [x] 4. **Run first migration** (`prisma migrate dev --name init`). Test: tables exist, check with `npx prisma studio`.
 - [x] 5. **Write seed.ts** (Acme Corp, sample products, tiers, one warehouse). Test: `npx prisma db seed` populates data, visible in Prisma Studio.
 - [x] 6. **Setup Auth.js Credentials provider + bcrypt.** Test: can log in with a seeded user, session persists on refresh.
-- [ ] 7. **Add role-based route protection** (Rep/Manager/Finance/Admin/Customer). Test: logging in as each role redirects to correct area, blocked areas 403/redirect.
-- [ ] 8. **Build Login/Signup screen (Screen 1).** Test: bad credentials show error, correct ones log in.
+- [x] 7. **Add role-based route protection** (Rep/Manager/Finance/Admin/Customer). Test: logging in as each role redirects to correct area, blocked areas 403/redirect.
+- [x] 8. **Build Login/Signup screen (Screen 1).** Test: bad credentials show error, correct ones log in.
 - [x] 9. **Build Sales Dashboard shell (Screen 2)** with top nav, empty summary cards. Test: nav links route correctly for an internal user.
 - [x] 10. **Build Product Catalog list + detail (Screens 16-17).** Test: create a product with variants and a price list entry, see it saved correctly in DB.
 - [ ] 11. **Build Discount Tier & Approval Chain setup (Screen 18).** Test: change Gold's ceiling, confirm the new number is read from DB (not hardcoded) on next check.
