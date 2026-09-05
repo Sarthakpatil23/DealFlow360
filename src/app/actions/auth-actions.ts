@@ -149,3 +149,38 @@ export async function signupAction(
 export async function logoutAction() {
   await signOut({ redirectTo: "/login" });
 }
+
+/**
+ * 1-Click Persona Switcher for seamless testing and demonstration of the
+ * complete approval and customer negotiation lifecycle (project.md).
+ */
+export async function switchPersonaAction(targetEmail: string, redirectUrl?: string) {
+  const normalizedEmail = targetEmail.trim().toLowerCase();
+
+  // Determine appropriate redirect destination
+  let destination = redirectUrl;
+  if (!destination || destination === "/" || destination === "/login") {
+    if (normalizedEmail === "procurement@acme.com" || normalizedEmail.includes("acme")) {
+      destination = "/portal";
+    } else {
+      destination = "/dashboard";
+    }
+  }
+
+  // If switching from portal to internal user, prevent redirecting back to /portal
+  if (normalizedEmail !== "procurement@acme.com" && destination.startsWith("/portal")) {
+    destination = "/dashboard";
+  }
+
+  // If switching from internal to customer user, prevent redirecting to internal dashboard
+  if (normalizedEmail === "procurement@acme.com" && !destination.startsWith("/portal")) {
+    destination = "/portal";
+  }
+
+  await signIn("credentials", {
+    email: normalizedEmail,
+    password: "password123",
+    redirectTo: destination,
+  });
+}
+

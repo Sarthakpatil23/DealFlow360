@@ -6,6 +6,7 @@ import { useTransition } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { logoutAction } from "@/app/actions/auth-actions";
 import { LogOut, Loader2 } from "lucide-react";
+import { PersonaSwitcher } from "@/components/navigation/persona-switcher";
 
 export interface NavItem {
   label: string;
@@ -24,7 +25,13 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Products", href: "/products" },
 ];
 
-export function TopNav() {
+export interface TopNavProps {
+  userEmail?: string;
+  userRole?: string;
+  userName?: string;
+}
+
+export function TopNav({ userEmail, userRole, userName }: TopNavProps = {}) {
   const pathname = usePathname();
   const [isLoggingOut, startTransition] = useTransition();
 
@@ -80,6 +87,11 @@ export function TopNav() {
           </nav>
 
           <div className="flex items-center gap-2 shrink-0 pl-2 border-l border-[#ebebeb] dark:border-[#262626]">
+            <PersonaSwitcher
+              currentUserEmail={userEmail}
+              currentUserRole={userRole}
+              currentUserName={userName}
+            />
             <ThemeToggle />
             <button
               type="button"

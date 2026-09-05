@@ -21,7 +21,10 @@ import {
   FileText,
   Loader2,
   AlertTriangle,
+  UserCheck,
+  Sparkles,
 } from "lucide-react";
+import { switchPersonaAction } from "@/app/actions/auth-actions";
 
 interface ApprovalDetailViewProps {
   initialData: ApprovalDetailData;
@@ -31,12 +34,27 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
   const router = useRouter();
   const [data, setData] = useState<ApprovalDetailData>(initialData);
   const [loading, setLoading] = useState(false);
+  const [switchingPersona, setSwitchingPersona] = useState(false);
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [returnNote, setReturnNote] = useState("");
   const [statusMessage, setStatusMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  async function handleQuickSwitch(email: string) {
+    setSwitchingPersona(true);
+    setStatusMessage(null);
+    try {
+      await switchPersonaAction(email, `/approvals/${data.displayCode}`);
+    } catch (err: any) {
+      if (err?.message?.includes("NEXT_REDIRECT")) {
+        return;
+      }
+      setStatusMessage({ type: "error", text: err?.message || "Failed to switch persona" });
+      setSwitchingPersona(false);
+    }
+  }
 
   /**
    * 1. Approve Quotation
@@ -425,9 +443,44 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
           </button>
         </div>
       ) : data.statusNotice ? (
-        <div className="flex items-center gap-3 p-4 rounded-xl border border-[#ebebeb] dark:border-[#262626] bg-[#f9fafb] dark:bg-[#121212] text-xs sm:text-sm text-[#737373] dark:text-[#a1a1a1] shadow-2xs">
-          <Info className="h-4 w-4 text-neutral-500 flex-shrink-0" />
-          <p className="font-medium">{data.statusNotice}</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-border/80 bg-muted/40 text-xs sm:text-sm text-muted-foreground shadow-2xs">
+          <div className="flex items-center gap-3">
+            <Info className="h-4 w-4 text-primary shrink-0" />
+            <p className="font-medium text-foreground">{data.statusNotice}</p>
+          </div>
+
+          {/* 1-Click Persona Switcher button if pending approval matches an approver authority */}
+          {data.stage === "PENDING_APPROVAL" && data.currentRequiredRole === "SALES_MANAGER" && (
+            <button
+              type="button"
+              disabled={switchingPersona}
+              onClick={() => handleQuickSwitch("mshah@dealflow.com")}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs shrink-0 cursor-pointer disabled:opacity-50"
+            >
+              {switchingPersona ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <UserCheck className="h-3.5 w-3.5" />
+              )}
+              Act as M. Shah (Sales Manager)
+            </button>
+          )}
+
+          {data.stage === "PENDING_APPROVAL" && data.currentRequiredRole === "FINANCE" && (
+            <button
+              type="button"
+              disabled={switchingPersona}
+              onClick={() => handleQuickSwitch("riyer@dealflow.com")}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs shrink-0 cursor-pointer disabled:opacity-50"
+            >
+              {switchingPersona ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <UserCheck className="h-3.5 w-3.5" />
+              )}
+              Act as R. Iyer (Finance Manager)
+            </button>
+          )}
         </div>
       ) : null}
 

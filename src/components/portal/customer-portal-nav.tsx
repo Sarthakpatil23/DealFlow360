@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { logoutAction } from "@/app/actions/auth-actions";
+import { PersonaSwitcher } from "@/components/navigation/persona-switcher";
 import {
   Building2,
   LogOut,
@@ -122,13 +123,13 @@ export function CustomerPortalNav({
             </div>
           )}
 
-          {/* User Profile & Actions */}
-          <div className="flex items-center gap-3">
-            {userEmail && (
-              <span className="hidden lg:inline text-xs text-muted-foreground font-mono truncate max-w-[160px]">
-                {userEmail}
-              </span>
-            )}
+          {/* User Profile, Persona Switcher & Actions */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <PersonaSwitcher
+              currentUserEmail={userEmail}
+              currentUserRole="CUSTOMER"
+              currentUserName={customerName}
+            />
 
             <ThemeToggle />
 

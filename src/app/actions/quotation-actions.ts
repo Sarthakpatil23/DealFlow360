@@ -38,6 +38,8 @@ export interface QuotationDetailData {
   stage: string;
   currency: string;
   orderLines: LineItemData[];
+  returnedReason?: string | null;
+  returnedBy?: string | null;
 }
 
 /**
@@ -91,6 +93,8 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
           stage: "DRAFT",
           currency: customerCurrency,
           orderLines: [],
+          returnedReason: null,
+          returnedBy: null,
         } as QuotationDetailData,
       };
     }
@@ -104,6 +108,14 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
         orderLines: {
           orderBy: { createdAt: "asc" },
           include: { product: true },
+        },
+        approvalSteps: {
+          orderBy: { stepOrder: "desc" },
+          include: { actedByUser: true },
+        },
+        auditLogEntries: {
+          orderBy: { createdAt: "desc" },
+          take: 5,
         },
       },
     });
@@ -123,6 +135,16 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
       isUpsellAdd: line.isUpsellAdd,
     }));
 
+    // Check if quotation was returned for revision
+    const returnedStep = quotation.approvalSteps.find((s) => s.status === "RETURNED");
+    const returnedAudit = quotation.auditLogEntries.find((a) => a.action === "RETURNED_FOR_REVISION");
+    const returnedReason =
+      returnedStep?.note ||
+      (returnedAudit?.note
+        ? returnedAudit.note.replace(/^.*returned for revision:\s*"?/, "").replace(/"?$/, "")
+        : null);
+    const returnedBy = returnedStep?.actedByUser?.name || null;
+
     return {
       success: true,
       data: {
@@ -141,6 +163,8 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
         stage: quotation.stage,
         currency: quotation.currency,
         orderLines: lines,
+        returnedReason,
+        returnedBy,
       } as QuotationDetailData,
     };
   } catch (err: any) {

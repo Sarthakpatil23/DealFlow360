@@ -7,15 +7,21 @@ import {
 } from "@/app/actions/quotation-actions";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
+import { auth } from "@/auth";
 
 export default async function NewQuotationPage() {
+  const session = await auth();
   const quoteResult = await getQuotationForBuilder("new");
   const availableProducts = await getAvailableProductsList();
   const availableCustomers = await getAvailableCustomersList();
 
   return (
     <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-[#171717] dark:text-[#ededed] flex flex-col font-sans transition-colors duration-150">
-      <TopNav />
+      <TopNav
+        userEmail={session?.user?.email || undefined}
+        userRole={session?.user?.role || undefined}
+        userName={session?.user?.name || undefined}
+      />
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {quoteResult.data ? (
           <QuotationBuilder

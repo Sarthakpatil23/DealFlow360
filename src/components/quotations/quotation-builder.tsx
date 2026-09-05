@@ -29,10 +29,12 @@ import {
   Check,
   ChevronDown,
   Info,
-  PackagePlus
+  PackagePlus,
+  AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CustomerComboboxSelector } from "@/components/quotations/customer-combobox-selector";
 
 interface CatalogProduct {
   id: string;
@@ -273,17 +275,18 @@ export function QuotationBuilder({
     setIsSubmitting(false);
 
     if (res.success) {
-      setStage("PENDING_APPROVAL");
+      const nextStage = res.stage || "PENDING_APPROVAL";
+      setStage(nextStage);
       setSaveSuccessMessage(res.message || "Quotation submitted for approval successfully!");
       
-      if (isNew && saveRes.displayCode) {
-        setTimeout(() => {
-          router.push(`/quotations/${saveRes.displayCode}`);
-        }, 700);
-      } else {
-        setTimeout(() => setSaveSuccessMessage(null), 4000);
-        router.refresh();
-      }
+      const targetCode = saveRes.displayCode || displayCode;
+      setTimeout(() => {
+        if (nextStage === "APPROVED") {
+          router.push(`/quotations/${targetCode}`);
+        } else {
+          router.push(`/approvals/${targetCode}`);
+        }
+      }, 900);
     } else {
       setErrorMessage(res.error || "Failed to submit for approval");
     }
@@ -432,58 +435,39 @@ export function QuotationBuilder({
         </div>
       )}
 
+      {/* Returned for Revision Notice Banner */}
+      {initialData.returnedReason && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 flex items-start gap-3.5 shadow-2xs">
+          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-xs uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Returned for Revision {initialData.returnedBy ? `by ${initialData.returnedBy}` : ""}
+              </span>
+              <span className="text-[10px] bg-amber-500/20 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded-full font-mono font-medium">
+                Action Required
+              </span>
+            </div>
+            <p className="text-xs text-amber-900 dark:text-amber-200 font-medium">
+              &ldquo;{initialData.returnedReason}&rdquo;
+            </p>
+            <p className="text-[11px] text-muted-foreground pt-0.5">
+              Please adjust line item discounts or requested quantities to comply with company policy and resubmit for approval.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 3 Parameter Cards with Harmonious Heights & Unified Borders */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Card 1: Target Customer */}
-        <div className="rounded-2xl border border-border/80 bg-card p-5 flex flex-col gap-3 shadow-2xs transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5 text-primary" />
-              Target Customer
-            </span>
-            <span
-              className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                customerTier === "GOLD"
-                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
-                  : customerTier === "SILVER"
-                  ? "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30"
-                  : "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30"
-              }`}
-            >
-              {customerTier} TIER ({tierCeilingPercent}% MAX)
-            </span>
-          </div>
-
-          <div className="relative">
-            {availableCustomers.length > 0 ? (
-              <div className="relative">
-                <select
-                  value={customerId}
-                  onChange={(e) => handleCustomerSelect(e.target.value)}
-                  className="w-full h-10 appearance-none rounded-xl border border-border/80 bg-background hover:bg-muted/30 px-3.5 pr-8 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs transition-colors cursor-pointer"
-                >
-                  {availableCustomers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} — {c.tier} Tier ({c.preferredCurrency || "USD"})
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="h-4 w-4 text-muted-foreground absolute right-3 top-3 pointer-events-none" />
-              </div>
-            ) : (
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full h-10 rounded-xl border border-border/80 bg-background px-3.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
-              />
-            )}
-          </div>
-
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2.5 border-t border-border/50">
-            <span>Currency: <strong className="text-foreground font-semibold">USD ($)</strong></span>
-            <span>Ceiling: <strong className="text-foreground font-semibold">{tierCeilingPercent}% Max</strong></span>
-          </div>
+        {/* Card 1: Target Customer Organization */}
+        <div className="rounded-2xl border border-border/80 bg-card p-5 flex flex-col justify-between shadow-2xs transition-colors">
+          <CustomerComboboxSelector
+            customers={availableCustomers}
+            selectedCustomerId={customerId}
+            onSelectCustomer={handleCustomerSelect}
+            disabled={stage !== "DRAFT" && stage !== "RETURNED_FOR_REVISION"}
+          />
         </div>
 
         {/* Card 2: Applied Price List */}
