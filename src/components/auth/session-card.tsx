@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { logoutAction } from "@/app/actions/auth-actions";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Layers, LogOut } from "lucide-react";
@@ -68,15 +69,24 @@ export function SessionCard({ user }: SessionCardProps) {
         </div>
       </div>
 
-      <form action={logoutAction} className="pt-2">
-        <button
-          type="submit"
-          className="w-full flex items-center justify-center gap-2 rounded-[6px] border border-border bg-background py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+      <div className="space-y-2 pt-2">
+        <Link
+          href="/dashboard"
+          className="w-full inline-flex items-center justify-center rounded-[6px] bg-primary text-primary-foreground py-2 text-xs font-medium hover:bg-primary/90 transition-colors shadow-xs"
         >
-          <LogOut className="h-3.5 w-3.5" />
-          Sign Out
-        </button>
-      </form>
+          Enter Sales Dashboard (Screen 2) →
+        </Link>
+
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="w-full flex items-center justify-center gap-2 rounded-[6px] border border-border bg-background py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Sign Out
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

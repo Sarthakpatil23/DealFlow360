@@ -53,6 +53,16 @@
   }
 }
 
+.dark {
+  --background: #000000;
+  --foreground: #ededed;
+  --card: #0a0a0a;
+  --card-foreground: #ededed;
+  --border: #262626;
+  --input: #262626;
+  --ring: #ffffff;
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
