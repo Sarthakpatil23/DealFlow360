@@ -7,10 +7,12 @@ import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { getDashboardData } from "@/lib/dashboard-data";
 import { UserRole } from "@prisma/client";
 
+import { PersonaSwitcher } from "@/components/navigation/persona-switcher";
+
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Sales Dashboard — DealFlow360",
+  title: "Dashboard — DealFlow360",
   description: "Role-adaptive central hub for sales operations, management, and finance",
 };
 
@@ -22,10 +24,11 @@ export default async function SalesDashboardPage() {
     redirect("/portal");
   }
 
+  const userRole = (session?.user?.role as UserRole) || UserRole.REP;
   const userContext = session?.user
     ? {
         id: session.user.id,
-        role: session.user.role as UserRole,
+        role: userRole,
         name: session.user.name,
       }
     : undefined;
@@ -33,23 +36,35 @@ export default async function SalesDashboardPage() {
   const { roleBadge, summaryCards, quickActions, recentActivities } =
     await getDashboardData(userContext);
 
+  let pageHeading = "Sales Representative Pipeline";
+  if (userRole === UserRole.MANAGER) {
+    pageHeading = "Sales Manager Oversight & Approvals";
+  } else if (userRole === UserRole.FINANCE) {
+    pageHeading = "Finance & Operations Console";
+  } else if (userRole === UserRole.ADMIN) {
+    pageHeading = "System Administration & Governance";
+  }
+
   return (
     <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-[#171717] dark:text-[#ededed] flex flex-col font-sans transition-colors duration-150">
-      {/* Top Navigation */}
-      <TopNav />
+      {/* Top Navigation with Role Awareness */}
+      <TopNav currentRole={userRole} currentName={session?.user?.name} />
 
       {/* Main Dashboard Surface */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10 space-y-6">
+        {/* Persona Switcher Simulator Bar */}
+        <PersonaSwitcher currentRole={userRole} currentName={session?.user?.name} />
+
         {/* Header Section */}
         <header className="space-y-1">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#171717] dark:text-[#ededed]">
-                  Sales Dashboard / Home
+                  {pageHeading}
                 </h1>
                 <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${roleBadge.colorClass}`}
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${roleBadge.colorClass}`}
                 >
                   {roleBadge.label}
                 </span>
@@ -61,9 +76,11 @@ export default async function SalesDashboardPage() {
 
             {session?.user && (
               <div className="flex items-center gap-2 self-start sm:self-auto">
-                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  {session.user.name || session.user.email}
+                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 shadow-2xs">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>
+                    Logged in as: <strong>{session.user.name || session.user.email}</strong>
+                  </span>
                 </span>
               </div>
             )}

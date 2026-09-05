@@ -149,3 +149,28 @@ export async function signupAction(
 export async function logoutAction() {
   await signOut({ redirectTo: "/login" });
 }
+
+/**
+ * One-click demo persona switcher for testing role-based adaptations.
+ * Instantly logs in as the canonical seed user for the specified role.
+ */
+export async function switchPersonaAction(
+  targetRole: UserRole | "REP" | "MANAGER" | "FINANCE" | "ADMIN",
+  redirectTo: string = "/dashboard"
+) {
+  const roleEmailMap: Record<string, string> = {
+    REP: "jrao@dealflow.com",
+    MANAGER: "mshah@dealflow.com",
+    FINANCE: "riyer@dealflow.com",
+    ADMIN: "admin@dealflow.com",
+  };
+
+  const email = roleEmailMap[targetRole] || "jrao@dealflow.com";
+
+  await signIn("credentials", {
+    email,
+    password: "password123",
+    redirectTo,
+  });
+}
+
