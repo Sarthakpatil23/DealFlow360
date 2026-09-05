@@ -7,12 +7,9 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { logoutAction } from "@/app/actions/auth-actions";
 import { LogOut, Loader2 } from "lucide-react";
 
-import { PersonaSwitcher } from "@/components/navigation/persona-switcher";
-
 export interface NavItem {
   label: string;
   href: string;
-  roles?: string[];
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -23,17 +20,11 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Subscriptions", href: "/subscriptions" },
   { label: "Invoices", href: "/invoices" },
   { label: "Deal Health", href: "/deal-health" },
-  { label: "Discount Rules", href: "/discount-approval-setup", roles: ["MANAGER", "ADMIN"] },
   { label: "Reports", href: "/reports" },
   { label: "Products", href: "/products" },
 ];
 
-export interface TopNavProps {
-  currentRole?: string;
-  currentName?: string | null;
-}
-
-export function TopNav({ currentRole, currentName }: TopNavProps = {}) {
+export function TopNav() {
   const pathname = usePathname();
   const [isLoggingOut, startTransition] = useTransition();
 
@@ -65,12 +56,7 @@ export function TopNav({ currentRole, currentName }: TopNavProps = {}) {
             className="flex items-center gap-1.5"
             aria-label="Internal Navigation"
           >
-            {NAV_ITEMS.filter((item) => {
-              if (item.roles && currentRole && !item.roles.includes(currentRole)) {
-                return false;
-              }
-              return true;
-            }).map((item) => {
+            {NAV_ITEMS.map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.href === "/dashboard" && pathname === "/") ||
@@ -94,7 +80,6 @@ export function TopNav({ currentRole, currentName }: TopNavProps = {}) {
           </nav>
 
           <div className="flex items-center gap-2 shrink-0 pl-2 border-l border-[#ebebeb] dark:border-[#262626]">
-            <PersonaSwitcher currentRole={currentRole} currentName={currentName} compact={true} />
             <ThemeToggle />
             <button
               type="button"

@@ -127,30 +127,27 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
       summaryCards = [
         {
           id: "rep-pending-approvals",
-          title: "My Submitted Quotes",
-          metric: `${myPendingCount} in review`,
-          subtitle: "Waiting for Manager / Finance approval",
+          title: "Pending Approvals",
+          metric: `${myPendingCount} quotations waiting`,
           href: "/quotations",
         },
         {
           id: "rep-open-deals",
-          title: "My Active Deals",
+          title: "Open Quotations",
           metric: `${myOpenCount} active deals`,
-          subtitle: "In Draft, Approved, or Negotiation",
           href: "/quotations",
         },
         {
           id: "rep-flagged-items",
-          title: "My Flagged Deals",
-          metric: `${myFlaggedCount} need attention`,
-          subtitle: "Stalled quotes or customer comments",
+          title: "At-Risk Deals",
+          metric: `${myFlaggedCount} flagged deals`,
           href: "/quotations",
         },
       ];
 
       quickActions = [
         { label: "+ New Quotation", href: "/quotations/new", variant: "primary" },
-        { label: "My Pipeline (Kanban)", href: "/quotations", variant: "secondary" },
+        { label: "View Approvals", href: "/approvals", variant: "secondary" },
       ];
     } else if (role === UserRole.MANAGER) {
       // SALES MANAGER: Focus on team review queue, team pipeline, and anomalies
@@ -179,31 +176,28 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
       summaryCards = [
         {
           id: "manager-approvals-queue",
-          title: "Approvals Awaiting My Action",
-          metric: `${managerStepsCount} quotations waiting`,
-          subtitle: "Level 1 reviews requiring sign-off",
+          title: "Pending Approvals",
+          metric: `${managerStepsCount} quotations awaiting manager review`,
           href: "/approvals",
         },
         {
           id: "manager-team-pipeline",
-          title: "Team Open Pipeline",
-          metric: `${teamOpenCount} active deals`,
-          subtitle: "Across all sales representatives",
+          title: "Open Quotations",
+          metric: `${teamOpenCount} active team deals`,
           href: "/quotations",
         },
         {
           id: "manager-at-risk",
           title: "At-Risk Deals",
           metric: `${teamHealthCount} flagged by Deal Health`,
-          subtitle: "Stalled deals & discount anomalies",
           href: "/deal-health",
         },
       ];
 
       quickActions = [
-        { label: "Review Approvals Queue", href: "/approvals", variant: "primary" },
+        { label: "Review Approvals", href: "/approvals", variant: "primary" },
         { label: "Deal Health Console", href: "/deal-health", variant: "secondary" },
-        { label: "Discount & Approval Rules", href: "/discount-approval-setup", variant: "secondary" },
+        { label: "Discount Rules Setup", href: "/discount-approval-setup", variant: "secondary" },
       ];
     } else if (role === UserRole.FINANCE) {
       // FINANCE / OPERATIONS: Focus on high-risk discount approvals, billing, and fulfillment
@@ -232,29 +226,26 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
       summaryCards = [
         {
           id: "finance-high-risk-approvals",
-          title: "High-Risk Approvals",
-          metric: `${financeStepsCount} quotes pending`,
-          subtitle: "Level 2 high-risk discount signoffs",
+          title: "Pending Approvals",
+          metric: `${financeStepsCount} high-risk quotations awaiting finance`,
           href: "/approvals",
         },
         {
           id: "finance-unpaid-invoices",
-          title: "Unpaid Invoices",
-          metric: `${unpaidInvoices.length} unpaid ($${unpaidTotal.toLocaleString()})`,
-          subtitle: "Pending payment & cash collection",
+          title: "Open Quotations",
+          metric: `${unpaidInvoices.length} unpaid invoices ($${unpaidTotal.toLocaleString()})`,
           href: "/invoices",
         },
         {
           id: "finance-fulfillment-splits",
-          title: "Fulfillment & Backorders",
-          metric: `${backorderCount} orders awaiting stock`,
-          subtitle: "Warehouse splits & inventory allocation",
+          title: "At-Risk Deals",
+          metric: `${backorderCount} orders awaiting stock allocation`,
           href: "/fulfillment",
         },
       ];
 
       quickActions = [
-        { label: "Review High-Risk Approvals", href: "/approvals", variant: "primary" },
+        { label: "Review Approvals", href: "/approvals", variant: "primary" },
         { label: "Invoices & Payments", href: "/invoices", variant: "secondary" },
         { label: "Fulfillment & Stock", href: "/fulfillment", variant: "secondary" },
       ];
@@ -280,31 +271,28 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
       summaryCards = [
         {
           id: "admin-pending-approvals",
-          title: "All Pending Approvals",
+          title: "Pending Approvals",
           metric: `${allPendingCount} quotations waiting`,
-          subtitle: "Platform-wide approval queue",
           href: "/approvals",
         },
         {
           id: "admin-open-quotations",
-          title: "Total Open Pipeline",
+          title: "Open Quotations",
           metric: `${allOpenCount} active deals`,
-          subtitle: "Across all enterprise workspaces",
           href: "/quotations",
         },
         {
           id: "admin-at-risk-deals",
-          title: "System Governance Alerts",
+          title: "At-Risk Deals",
           metric: `${totalAlertsCount} flagged by Deal Health`,
-          subtitle: "Operational & deal health anomalies",
           href: "/deal-health",
         },
       ];
 
       quickActions = [
-        { label: "Review Approvals Queue", href: "/approvals", variant: "primary" },
-        { label: "Discount & Approval Rules", href: "/discount-approval-setup", variant: "secondary" },
-        { label: "Warehouse & Stock Setup", href: "/fulfillment", variant: "secondary" },
+        { label: "+ New Quotation", href: "/quotations/new", variant: "primary" },
+        { label: "View Approvals", href: "/approvals", variant: "secondary" },
+        { label: "Discount Rules Setup", href: "/discount-approval-setup", variant: "secondary" },
       ];
     }
   } catch (error) {
