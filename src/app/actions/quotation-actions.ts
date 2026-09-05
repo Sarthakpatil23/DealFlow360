@@ -2,6 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
+import { calculateLineDiscountLimit } from "@/lib/business-logic/discount-limits";
 
 export interface LineItemData {
   id?: string;
@@ -26,55 +28,121 @@ export interface QuotationDetailData {
   orderLines: LineItemData[];
 }
 
+/**
+ * Generates the next sequential quotation display code (e.g. Q-1043).
+ * Queries all existing quotation codes matching Q-<number> and returns Q-<max + 1>.
+ */
+export async function generateNextDisplayCode(): Promise<string> {
+  const quotations = await prisma.quotation.findMany({
+    select: { displayCode: true },
+  });
+
+  let maxNum = 1000;
+  for (const q of quotations) {
+    const match = q.displayCode.match(/Q-(\d+)/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNum) {
+        maxNum = num;
+      }
+    }
+  }
+
+  return `Q-${maxNum + 1}`;
+}
+
 export async function getQuotationForBuilder(idOrDisplayCode: string) {
   try {
-    // If "new", return template
+    // If "new", generate next quotation code and pre-fill template
     if (idOrDisplayCode === "new") {
       const defaultCustomer =
         (await prisma.customer.findFirst({
           where: { name: "Acme Corp" },
         })) || (await prisma.customer.findFirst());
 
+      const nextCode = await generateNextDisplayCode();
+
+      const customerTier = (defaultCustomer?.tier || "GOLD") as any;
+      const customerCurrency = defaultCustomer?.preferredCurrency || "USD";
+
+      // Look up default seed catalog products to set real productIds
+      const catalogProducts = await prisma.product.findMany({
+        where: { isArchived: false },
+      });
+
+      const pLaptop = catalogProducts.find((p) => p.name.toLowerCase().includes("laptop"));
+      const pService = catalogProducts.find(
+        (p) => p.name.toLowerCase().includes("service") || p.name.toLowerCase().includes("setup")
+      );
+      const pWarranty = catalogProducts.find((p) => p.name.toLowerCase().includes("warranty"));
+
+      const orderLines: LineItemData[] = [];
+
+      if (pLaptop) {
+        const lim = calculateLineDiscountLimit({
+          customerTier,
+          productCategory: pLaptop.category,
+          discountPercent: 12,
+        });
+        orderLines.push({
+          productId: pLaptop.id,
+          productName: pLaptop.name,
+          quantity: 2,
+          unitPrice: Number(pLaptop.basePrice),
+          discountPercent: 12,
+          effectiveLimitPercent: lim.effectiveLimitPercent,
+          isUpsellAdd: false,
+        });
+      }
+
+      if (pService) {
+        const lim = calculateLineDiscountLimit({
+          customerTier,
+          productCategory: pService.category,
+          discountPercent: 18,
+        });
+        orderLines.push({
+          productId: pService.id,
+          productName: pService.name,
+          quantity: 1,
+          unitPrice: Number(pService.basePrice),
+          discountPercent: 18,
+          effectiveLimitPercent: lim.effectiveLimitPercent,
+          isUpsellAdd: false,
+        });
+      }
+
+      if (pWarranty) {
+        const lim = calculateLineDiscountLimit({
+          customerTier,
+          productCategory: pWarranty.category,
+          discountPercent: 10,
+        });
+        orderLines.push({
+          productId: pWarranty.id,
+          productName: pWarranty.name,
+          quantity: 1,
+          unitPrice: Number(pWarranty.basePrice),
+          discountPercent: 10,
+          effectiveLimitPercent: lim.effectiveLimitPercent,
+          isUpsellAdd: false,
+        });
+      }
+
       return {
         success: true,
         data: {
           id: "new",
-          displayCode: "Q-1042",
+          displayCode: nextCode,
           customerId: defaultCustomer?.id || "",
           customerName: defaultCustomer?.name || "Acme Corp",
-          customerTier: defaultCustomer?.tier || "GOLD",
-          priceListName: `Standard (USD) — ${defaultCustomer?.tier || "Gold"} Tier (15% Max)`,
+          customerTier: customerTier,
+          priceListName: `Standard (${customerCurrency}) — ${customerTier} Tier (${
+            customerTier === "GOLD" ? "15%" : customerTier === "SILVER" ? "10%" : "5%"
+          } Max)`,
           stage: "DRAFT",
-          currency: "USD",
-          orderLines: [
-            {
-              productId: "",
-              productName: "Laptop Pro 14",
-              quantity: 2,
-              unitPrice: 1200,
-              discountPercent: 12,
-              effectiveLimitPercent: 15,
-              isUpsellAdd: false,
-            },
-            {
-              productId: "",
-              productName: "Onsite Setup Service",
-              quantity: 1,
-              unitPrice: 450,
-              discountPercent: 18,
-              effectiveLimitPercent: 10,
-              isUpsellAdd: false,
-            },
-            {
-              productId: "",
-              productName: "Extended Warranty",
-              quantity: 1,
-              unitPrice: 180,
-              discountPercent: 10,
-              effectiveLimitPercent: 15,
-              isUpsellAdd: false,
-            },
-          ],
+          currency: customerCurrency,
+          orderLines,
         } as QuotationDetailData,
       };
     }
@@ -190,40 +258,72 @@ export async function saveQuotationAsDraft(payload: {
 }) {
   try {
     let quotationId = payload.id;
-    let targetDisplayCode = payload.displayCode || "Q-1042";
+    let targetDisplayCode = payload.displayCode;
 
-    // 1. If quotation doesn't exist yet or is new, find or create
+    // 1. If quotation doesn't exist yet or is "new", create a brand new quotation
     if (!quotationId || quotationId === "new") {
-      let existing = await prisma.quotation.findFirst({
-        where: { displayCode: targetDisplayCode },
-      });
-
-      if (existing) {
-        quotationId = existing.id;
+      // Validate or generate a unique display code
+      if (!targetDisplayCode) {
+        targetDisplayCode = await generateNextDisplayCode();
       } else {
+        const existingWithCode = await prisma.quotation.findFirst({
+          where: { displayCode: targetDisplayCode },
+        });
+        if (existingWithCode) {
+          // Display code already taken by an existing quote, generate the next available code
+          targetDisplayCode = await generateNextDisplayCode();
+        }
+      }
+
+      // Determine owner rep (session or default rep)
+      let ownerRepId: string | undefined;
+      try {
+        const session = await auth();
+        if (session?.user?.id && session.user.role !== "CUSTOMER") {
+          ownerRepId = session.user.id;
+        }
+      } catch {
+        // Fallback if called outside auth context
+      }
+
+      if (!ownerRepId) {
         const defaultRep =
           (await prisma.user.findFirst({ where: { role: "REP" } })) ||
           (await prisma.user.findFirst());
-        const defaultCustomer =
-          (payload.customerId
-            ? await prisma.customer.findUnique({ where: { id: payload.customerId } })
-            : null) ||
-          (await prisma.customer.findFirst({ where: { name: "Acme Corp" } })) ||
-          (await prisma.customer.findFirst());
-
-        const created = await prisma.quotation.create({
-          data: {
-            displayCode: targetDisplayCode,
-            customerId: defaultCustomer!.id,
-            ownerRepId: defaultRep!.id,
-            stage: "DRAFT",
-            currency: "USD",
-          },
-        });
-        quotationId = created.id;
+        ownerRepId = defaultRep?.id;
       }
+
+      const defaultCustomer =
+        (payload.customerId
+          ? await prisma.customer.findUnique({ where: { id: payload.customerId } })
+          : null) ||
+        (await prisma.customer.findFirst({ where: { name: "Acme Corp" } })) ||
+        (await prisma.customer.findFirst());
+
+      if (!defaultCustomer || !ownerRepId) {
+        return { success: false, error: "Missing required customer or sales rep to create quotation." };
+      }
+
+      const created = await prisma.quotation.create({
+        data: {
+          displayCode: targetDisplayCode,
+          customerId: defaultCustomer.id,
+          ownerRepId: ownerRepId,
+          stage: "DRAFT",
+          currency: defaultCustomer.preferredCurrency || "USD",
+        },
+      });
+      quotationId = created.id;
     } else {
-      // Ensure target quotation is saved as DRAFT
+      // Existing quotation update
+      const existing = await prisma.quotation.findUnique({
+        where: { id: quotationId },
+      });
+      if (!existing) {
+        return { success: false, error: `Quotation "${quotationId}" not found.` };
+      }
+      targetDisplayCode = existing.displayCode;
+
       await prisma.quotation.update({
         where: { id: quotationId },
         data: {
@@ -234,22 +334,36 @@ export async function saveQuotationAsDraft(payload: {
       });
     }
 
-    // 2. Fetch product map to resolve product IDs if missing
+    // 2. Fetch customer tier to evaluate limits
+    const currentCustomer = await prisma.quotation.findUnique({
+      where: { id: quotationId },
+      include: { customer: true },
+    });
+    const customerTier = (currentCustomer?.customer.tier || "GOLD") as any;
+
+    // 3. Fetch product map to resolve product IDs and categories
     const allProducts = await prisma.product.findMany();
     const productByName = new Map(allProducts.map((p) => [p.name.toLowerCase(), p]));
     const productById = new Map(allProducts.map((p) => [p.id, p]));
 
-    // 3. Delete existing lines for this quotation and recreate with current saved state
+    // 4. Delete existing lines for this quotation and recreate with current saved state
     await prisma.orderLine.deleteMany({
       where: { quotationId },
     });
 
     if (payload.orderLines && payload.orderLines.length > 0) {
       const linesToCreate = payload.orderLines.map((line) => {
-        let matchedProduct =
+        const matchedProduct =
           (line.productId ? productById.get(line.productId) : null) ||
           productByName.get(line.productName.toLowerCase()) ||
           allProducts[0];
+
+        // Recalculate effective limit percent using business logic rule
+        const limitCheck = calculateLineDiscountLimit({
+          customerTier,
+          productCategory: matchedProduct.category,
+          discountPercent: Number(line.discountPercent) || 0,
+        });
 
         return {
           quotationId: quotationId!,
@@ -257,7 +371,7 @@ export async function saveQuotationAsDraft(payload: {
           quantity: Math.max(1, Number(line.quantity) || 1),
           unitPrice: Number(line.unitPrice) || Number(matchedProduct.basePrice),
           discountPercent: Number(line.discountPercent) || 0,
-          effectiveLimitPercent: Number(line.effectiveLimitPercent) || 15,
+          effectiveLimitPercent: limitCheck.effectiveLimitPercent,
           isUpsellAdd: Boolean(line.isUpsellAdd),
         };
       });
@@ -271,6 +385,7 @@ export async function saveQuotationAsDraft(payload: {
       revalidatePath(`/quotations/${targetDisplayCode}`);
       revalidatePath(`/quotations/${quotationId}`);
       revalidatePath("/quotations");
+      revalidatePath("/dashboard");
     } catch {
       // Ignored outside Next.js request context
     }
@@ -279,7 +394,7 @@ export async function saveQuotationAsDraft(payload: {
       success: true,
       quotationId,
       displayCode: targetDisplayCode,
-      message: "Quotation saved as Draft successfully.",
+      message: `Quotation ${targetDisplayCode} saved as Draft successfully.`,
     };
   } catch (err: any) {
     console.error("Error saving quotation draft:", err);
@@ -311,13 +426,15 @@ export async function submitQuotation(idOrDisplayCode: string) {
       revalidatePath(`/quotations/${q.displayCode}`);
       revalidatePath(`/quotations/${q.id}`);
       revalidatePath("/quotations");
+      revalidatePath("/dashboard");
+      revalidatePath("/approvals");
     } catch {
       // Ignored outside Next.js request context
     }
 
     return {
       success: true,
-      message: "Quotation submitted for approval.",
+      message: `Quotation ${q.displayCode} submitted for approval.`,
     };
   } catch (err: any) {
     console.error("Error submitting quotation:", err);

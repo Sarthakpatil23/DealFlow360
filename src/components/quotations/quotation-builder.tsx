@@ -8,6 +8,7 @@ import {
   saveQuotationAsDraft, 
   submitQuotation 
 } from "@/app/actions/quotation-actions";
+import { calculateLineDiscountLimit } from "@/lib/business-logic/discount-limits";
 import { 
   CheckCircle2, 
   AlertTriangle, 
@@ -15,11 +16,10 @@ import {
   Trash2, 
   Save, 
   Send, 
-  Sparkles, 
-  ArrowRight,
-  TrendingUp,
-  RotateCcw
+  ArrowLeft,
+  Loader2
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 interface CatalogProduct {
@@ -49,12 +49,15 @@ export function QuotationBuilder({
 }: QuotationBuilderProps) {
   const router = useRouter();
 
+  const isNew = initialData.id === "new";
+
   const [customerName, setCustomerName] = useState(initialData.customerName || "Acme Corp");
   const [customerId, setCustomerId] = useState(initialData.customerId || "");
+  const [customerTier, setCustomerTier] = useState(initialData.customerTier || "GOLD");
   const [priceListName, setPriceListName] = useState(
     initialData.priceListName || "Standard (USD) — Gold Tier (15% Max)"
   );
-  const [displayCode, setDisplayCode] = useState(initialData.displayCode || "Q-1042");
+  const [displayCode, setDisplayCode] = useState(initialData.displayCode || "Q-1043");
   const [lines, setLines] = useState<LineItemData[]>(initialData.orderLines || []);
   const [stage, setStage] = useState(initialData.stage || "DRAFT");
 
@@ -66,11 +69,50 @@ export function QuotationBuilder({
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // When customer changes, recalculate line limits
+  function handleCustomerSelect(newCustomerId: string) {
+    const sel = availableCustomers.find((c) => c.id === newCustomerId);
+    setCustomerId(newCustomerId);
+    if (sel) {
+      setCustomerName(sel.name);
+      setCustomerTier(sel.tier);
+      const tierMax = sel.tier === "GOLD" ? "15%" : sel.tier === "SILVER" ? "10%" : "5%";
+      setPriceListName(`Standard (${sel.preferredCurrency || "USD"}) — ${sel.tier} Tier (${tierMax} Max)`);
+
+      // Recompute effective limit for each line under the new customer tier
+      const updatedLines = lines.map((line) => {
+        const prod = availableProducts.find(
+          (p) => p.id === line.productId || p.name.toLowerCase() === line.productName.toLowerCase()
+        );
+        const prodCategory = (prod?.category || "HARDWARE") as any;
+        const lim = calculateLineDiscountLimit({
+          customerTier: sel.tier as any,
+          productCategory: prodCategory,
+          discountPercent: line.discountPercent,
+        });
+
+        return {
+          ...line,
+          effectiveLimitPercent: lim.effectiveLimitPercent,
+        };
+      });
+      setLines(updatedLines);
+    }
+  }
+
   // Update quantity of a line
   function handleQuantityChange(index: number, newQty: number) {
     const updated = [...lines];
     const qty = Math.max(1, isNaN(newQty) ? 1 : newQty);
     updated[index] = { ...updated[index], quantity: qty };
+    setLines(updated);
+  }
+
+  // Update discount percent of a line (live recalculation)
+  function handleDiscountChange(index: number, newDiscount: number) {
+    const updated = [...lines];
+    const disc = isNaN(newDiscount) ? 0 : Math.max(0, Math.min(100, Math.round(newDiscount * 100) / 100));
+    updated[index] = { ...updated[index], discountPercent: disc };
     setLines(updated);
   }
 
@@ -100,13 +142,19 @@ export function QuotationBuilder({
       return;
     }
 
+    const lim = calculateLineDiscountLimit({
+      customerTier: (customerTier || "GOLD") as any,
+      productCategory: (product.category || "HARDWARE") as any,
+      discountPercent: 0,
+    });
+
     const newLine: LineItemData = {
       productId: product.id,
       productName: product.name,
       quantity: 1,
       unitPrice: product.basePrice,
       discountPercent: 0,
-      effectiveLimitPercent: 15,
+      effectiveLimitPercent: lim.effectiveLimitPercent,
       isUpsellAdd: false,
     };
 
@@ -135,13 +183,20 @@ export function QuotationBuilder({
       return;
     }
 
+    const prodCategory = existingProduct?.category || (productName.includes("Care") ? "SUBSCRIPTION" : "HARDWARE");
+    const lim = calculateLineDiscountLimit({
+      customerTier: (customerTier || "GOLD") as any,
+      productCategory: prodCategory as any,
+      discountPercent: 0,
+    });
+
     const newLine: LineItemData = {
       productId: existingProduct?.id || "",
       productName: productName,
       quantity: 1,
       unitPrice: existingProduct?.basePrice || defaultPrice,
       discountPercent: 0,
-      effectiveLimitPercent: 15,
+      effectiveLimitPercent: lim.effectiveLimitPercent,
       isUpsellAdd: isUpsell,
     };
 
@@ -167,9 +222,16 @@ export function QuotationBuilder({
 
     if (res.success) {
       setStage("DRAFT");
-      setSaveSuccessMessage("Quotation saved as Draft successfully. All lines and quantities are persisted.");
-      setTimeout(() => setSaveSuccessMessage(null), 4000);
-      router.refresh();
+      setSaveSuccessMessage(res.message || "Quotation saved as Draft successfully.");
+      
+      if (isNew && res.displayCode) {
+        setTimeout(() => {
+          router.push(`/quotations/${res.displayCode}`);
+        }, 800);
+      } else {
+        setTimeout(() => setSaveSuccessMessage(null), 4000);
+        router.refresh();
+      }
     } else {
       setErrorMessage(res.error || "Failed to save draft");
     }
@@ -182,21 +244,34 @@ export function QuotationBuilder({
     setSaveSuccessMessage(null);
 
     // Save draft state first
-    await saveQuotationAsDraft({
+    const saveRes = await saveQuotationAsDraft({
       id: initialData.id,
       displayCode: displayCode,
       customerId: customerId || undefined,
       orderLines: lines,
     });
 
-    const res = await submitQuotation(initialData.id || displayCode);
+    if (!saveRes.success) {
+      setIsSaving(false);
+      setErrorMessage(saveRes.error || "Failed to save quotation before submitting");
+      return;
+    }
+
+    const res = await submitQuotation(saveRes.quotationId || saveRes.displayCode || displayCode);
     setIsSaving(false);
 
     if (res.success) {
       setStage("PENDING_APPROVAL");
-      setSaveSuccessMessage("Quotation submitted for approval successfully!");
-      setTimeout(() => setSaveSuccessMessage(null), 4000);
-      router.refresh();
+      setSaveSuccessMessage(res.message || "Quotation submitted for approval successfully!");
+      
+      if (isNew && saveRes.displayCode) {
+        setTimeout(() => {
+          router.push(`/quotations/${saveRes.displayCode}`);
+        }, 800);
+      } else {
+        setTimeout(() => setSaveSuccessMessage(null), 4000);
+        router.refresh();
+      }
     } else {
       setErrorMessage(res.error || "Failed to submit for approval");
     }
@@ -217,18 +292,36 @@ export function QuotationBuilder({
     };
   }
 
+  // Total Quotation Value calculation
+  const totalValue = lines.reduce((acc, line) => {
+    const gross = line.unitPrice * line.quantity;
+    const discountAmount = gross * (line.discountPercent / 100);
+    return acc + (gross - discountAmount);
+  }, 0);
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Navigation Breadcrumb */}
+      <div>
+        <Link
+          href="/quotations"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to Quotations Pipeline
+        </Link>
+      </div>
+
       {/* Notifications */}
       {saveSuccessMessage && (
-        <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+        <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-xs font-medium text-emerald-700 dark:text-emerald-400 animate-in fade-in duration-200">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           <span>{saveSuccessMessage}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-xs font-medium text-destructive">
+        <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-xs font-medium text-destructive animate-in fade-in duration-200">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>{errorMessage}</span>
         </div>
@@ -238,7 +331,7 @@ export function QuotationBuilder({
       <div className="space-y-1">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans">
-            Quotation Detail: {displayCode} ({customerName})
+            {isNew ? "New Quotation:" : "Quotation Detail:"} {displayCode} ({customerName})
           </h1>
           {stage && (
             <span
@@ -255,7 +348,9 @@ export function QuotationBuilder({
           )}
         </div>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Opened by clicking a row on the Quotations list. Add products, apply discounts, review upsells.
+          {isNew
+            ? "Configure line items, set discounts, and save to persist as a new quotation."
+            : "Opened by clicking a row on the Quotations list. Add products, apply discounts, review upsells."}
         </p>
       </div>
 
@@ -269,14 +364,7 @@ export function QuotationBuilder({
             {availableCustomers.length > 0 ? (
               <select
                 value={customerId}
-                onChange={(e) => {
-                  const sel = availableCustomers.find((c) => c.id === e.target.value);
-                  setCustomerId(e.target.value);
-                  if (sel) {
-                    setCustomerName(sel.name);
-                    setPriceListName(`Standard (${sel.preferredCurrency || "USD"}) — ${sel.tier} Tier`);
-                  }
-                }}
+                onChange={(e) => handleCustomerSelect(e.target.value)}
                 className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-xs transition-colors"
               >
                 {availableCustomers.map((c) => (
@@ -320,8 +408,8 @@ export function QuotationBuilder({
                 <th className="py-3 px-4 font-semibold text-foreground">Product</th>
                 <th className="py-3 px-4 font-semibold text-foreground w-24 text-center">Qty</th>
                 <th className="py-3 px-4 font-semibold text-foreground text-right w-28">Price</th>
-                <th className="py-3 px-4 font-semibold text-foreground text-center w-24">Discount</th>
-                <th className="py-3 px-4 font-semibold text-foreground text-center w-24">Limit</th>
+                <th className="py-3 px-4 font-semibold text-foreground text-center w-28">Discount</th>
+                <th className="py-3 px-4 font-semibold text-foreground text-center w-20">Limit</th>
                 <th className="py-3 px-4 font-semibold text-foreground text-center w-32">Status</th>
                 <th className="py-3 px-3 w-12 text-center"></th>
               </tr>
@@ -347,7 +435,7 @@ export function QuotationBuilder({
                         <div className="flex items-center gap-2">
                           <span>{line.productName}</span>
                           {line.isUpsellAdd && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 font-semibold">
                               Upsell
                             </span>
                           )}
@@ -361,7 +449,7 @@ export function QuotationBuilder({
                           min={1}
                           value={line.quantity}
                           onChange={(e) => handleQuantityChange(idx, parseInt(e.target.value, 10))}
-                          className="w-16 rounded-md border border-input bg-background py-1 px-2 text-center text-xs font-mono font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-16 rounded-md border border-input bg-background py-1 px-2 text-center text-xs font-mono font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
                         />
                       </td>
 
@@ -370,24 +458,39 @@ export function QuotationBuilder({
                         ${line.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                       </td>
 
-                      {/* Discount % */}
-                      <td className="py-3 px-4 text-center font-mono text-foreground">
-                        {line.discountPercent}%
+                      {/* Discount % Input */}
+                      <td className="py-2.5 px-4 text-center">
+                        <div className="inline-flex items-center justify-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={line.discountPercent}
+                            onChange={(e) => handleDiscountChange(idx, parseFloat(e.target.value))}
+                            className={`w-14 rounded-md border py-1 px-1.5 text-center text-xs font-mono font-medium focus:outline-none focus:ring-1 shadow-2xs ${
+                              statusInfo.isOver
+                                ? "border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-300 focus:ring-amber-500"
+                                : "border-input bg-background text-foreground focus:ring-primary"
+                            }`}
+                          />
+                          <span className="text-xs font-mono text-muted-foreground">%</span>
+                        </div>
                       </td>
 
-                      {/* Limit % */}
-                      <td className="py-3 px-4 text-center font-mono text-muted-foreground">
+                      {/* Effective Limit % */}
+                      <td className="py-3 px-4 text-center font-mono text-muted-foreground text-xs">
                         {line.effectiveLimitPercent}%
                       </td>
 
-                      {/* Status */}
+                      {/* Status Badge */}
                       <td className="py-3 px-4 text-center">
                         {statusInfo.isOver ? (
-                          <span className="font-semibold text-amber-600 dark:text-amber-400 text-xs font-mono">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold font-mono bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                             {statusInfo.text}
                           </span>
                         ) : (
-                          <span className="font-semibold text-foreground text-xs font-mono">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                             {statusInfo.text}
                           </span>
                         )}
@@ -412,7 +515,7 @@ export function QuotationBuilder({
           </table>
         </div>
 
-        {/* Add Product Inline Dropdown Bar */}
+        {/* Add Product Inline Dropdown Bar & Total */}
         <div className="p-3 bg-muted/20 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <select
@@ -438,18 +541,26 @@ export function QuotationBuilder({
             </button>
           </div>
 
-          <div className="text-xs font-mono text-muted-foreground text-right w-full sm:w-auto">
-            Total lines: <span className="font-semibold text-foreground">{lines.length}</span>
+          <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground text-right w-full sm:w-auto justify-between sm:justify-end">
+            <div>
+              Total lines: <span className="font-semibold text-foreground">{lines.length}</span>
+            </div>
+            <div className="border-l border-border pl-4">
+              Total Value:{" "}
+              <span className="font-bold text-foreground text-sm">
+                ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Discount Live Validation Warning Box (Matches wireframe box) */}
+      {/* Discount Live Validation Warning Box */}
       <div className="rounded-xl border border-amber-500/40 dark:border-amber-500/40 bg-amber-500/5 dark:bg-amber-950/20 px-4 py-3 text-xs sm:text-sm text-amber-900 dark:text-amber-300 font-medium">
         Discount is checked against each line&apos;s own limit live, as soon as it is entered, not only at submit time.
       </div>
 
-      {/* Upsell and Cross-Sell Suggestions Section (Matches wireframe cards) */}
+      {/* Upsell and Cross-Sell Suggestions Section */}
       <div className="space-y-3 pt-2">
         <h2 className="text-base sm:text-lg font-semibold text-sky-600 dark:text-sky-400">
           Upsell and Cross-Sell Suggestions
@@ -512,9 +623,9 @@ export function QuotationBuilder({
           type="button"
           disabled={isSaving}
           onClick={handleSaveDraft}
-          className="rounded-full border border-border bg-card hover:bg-accent text-foreground px-6 py-2.5 text-sm font-medium transition-colors shadow-xs flex items-center gap-2 disabled:opacity-50"
+          className="rounded-full border border-border bg-card hover:bg-accent text-foreground px-6 py-2.5 text-sm font-medium transition-colors shadow-xs flex items-center gap-2 disabled:opacity-50 cursor-pointer"
         >
-          <Save className="h-4 w-4" />
+          {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {isSaving ? "Saving..." : "Save Draft"}
         </button>
 
@@ -522,9 +633,9 @@ export function QuotationBuilder({
           type="button"
           disabled={isSaving}
           onClick={handleSubmitApproval}
-          className="rounded-full bg-[#0070f3] hover:bg-[#0761d1] text-white px-7 py-2.5 text-sm font-medium transition-colors shadow-xs flex items-center gap-2 disabled:opacity-50"
+          className="rounded-full bg-[#0070f3] hover:bg-[#0761d1] text-white px-7 py-2.5 text-sm font-medium transition-colors shadow-xs flex items-center gap-2 disabled:opacity-50 cursor-pointer"
         >
-          <Send className="h-4 w-4" />
+          {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           {isSaving ? "Submitting..." : "Submit for Approval"}
         </button>
       </div>
