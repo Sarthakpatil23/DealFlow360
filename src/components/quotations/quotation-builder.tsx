@@ -414,9 +414,9 @@ export function QuotationBuilder({
       {/* 3 Parameter Cards with Harmonious Heights & Unified Borders */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Card 1: Target Customer */}
-        <div className="rounded-2xl border border-border/80 bg-card p-4.5 flex flex-col justify-between shadow-2xs transition-colors min-h-[148px]">
+        <div className="rounded-2xl border border-border/80 bg-card p-5 flex flex-col gap-3 shadow-2xs transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5 text-primary" />
               Target Customer
             </span>
@@ -433,7 +433,7 @@ export function QuotationBuilder({
             </span>
           </div>
 
-          <div className="relative my-1">
+          <div className="relative">
             {availableCustomers.length > 0 ? (
               <div className="relative">
                 <select
@@ -459,16 +459,16 @@ export function QuotationBuilder({
             )}
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5 border-t border-border/40">
-            <span>Currency: <strong className="text-foreground">USD ($)</strong></span>
-            <span>Ceiling: <strong className="text-foreground">{tierCeilingPercent}% Max</strong></span>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2.5 border-t border-border/50">
+            <span>Currency: <strong className="text-foreground font-semibold">USD ($)</strong></span>
+            <span>Ceiling: <strong className="text-foreground font-semibold">{tierCeilingPercent}% Max</strong></span>
           </div>
         </div>
 
         {/* Card 2: Applied Price List */}
-        <div className="rounded-2xl border border-border/80 bg-card p-4.5 flex flex-col justify-between shadow-2xs transition-colors min-h-[148px]">
+        <div className="rounded-2xl border border-border/80 bg-card p-5 flex flex-col gap-3 shadow-2xs transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
               <Tag className="h-3.5 w-3.5 text-primary" />
               Applied Price List
             </span>
@@ -477,7 +477,7 @@ export function QuotationBuilder({
             </span>
           </div>
 
-          <div className="my-1">
+          <div>
             <div className="w-full h-10 rounded-xl border border-border/80 bg-background px-3.5 flex items-center justify-between shadow-2xs">
               <span className="text-xs font-medium text-foreground truncate">
                 {priceListName}
@@ -488,16 +488,16 @@ export function QuotationBuilder({
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5 border-t border-border/40">
-            <span>Currency: <strong className="text-foreground">USD</strong></span>
-            <span>Rule: <strong className="text-foreground">{customerTier === "GOLD" ? "Gold 10% Break" : "Standard"}</strong></span>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2.5 border-t border-border/50">
+            <span>Currency: <strong className="text-foreground font-semibold">USD</strong></span>
+            <span>Rule: <strong className="text-foreground font-semibold">{customerTier === "GOLD" ? "Gold 10% Break" : "Standard Base"}</strong></span>
           </div>
         </div>
 
         {/* Card 3: Approval Forecast */}
-        <div className="rounded-2xl border border-border/80 bg-card p-4.5 flex flex-col justify-between shadow-2xs transition-colors min-h-[148px]">
+        <div className="rounded-2xl border border-border/80 bg-card p-5 flex flex-col gap-3 shadow-2xs transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
               {financialTotals.anyOverLimit ? (
                 <ShieldAlert className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
               ) : (
@@ -516,7 +516,7 @@ export function QuotationBuilder({
             </span>
           </div>
 
-          <div className="my-1">
+          <div>
             <div
               className={`w-full h-10 rounded-xl border px-3.5 flex items-center justify-between shadow-2xs ${
                 financialTotals.anyOverLimit
@@ -539,9 +539,9 @@ export function QuotationBuilder({
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5 border-t border-border/40">
-            <span>Lines Checked: <strong className="text-foreground">{lines.length}</strong></span>
-            <span>Avg Discount: <strong className="text-foreground">{financialTotals.avgDiscountPercent.toFixed(1)}%</strong></span>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2.5 border-t border-border/50">
+            <span>Lines Checked: <strong className="text-foreground font-semibold">{lines.length}</strong></span>
+            <span>Avg Discount: <strong className="text-foreground font-semibold">{financialTotals.avgDiscountPercent.toFixed(1)}%</strong></span>
           </div>
         </div>
       </div>
@@ -823,7 +823,7 @@ export function QuotationBuilder({
           {/* Card 1: Wireless Mouse */}
           <div
             onClick={() => handleAddSuggestion("Wireless Mouse", 35, true)}
-            className="rounded-2xl border border-border/80 bg-card p-4.5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
+            className="rounded-2xl border border-border/80 bg-card p-5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
           >
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
@@ -848,7 +848,7 @@ export function QuotationBuilder({
           {/* Card 2: Docking Station */}
           <div
             onClick={() => handleAddSuggestion("Docking Station", 180, true)}
-            className="rounded-2xl border border-border/80 bg-card p-4.5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
+            className="rounded-2xl border border-border/80 bg-card p-5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
           >
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
@@ -873,7 +873,7 @@ export function QuotationBuilder({
           {/* Card 3: Care Plan 2yr */}
           <div
             onClick={() => handleAddSuggestion("Care Plan 2yr", 46, true)}
-            className="rounded-2xl border border-border/80 bg-card p-4.5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
+            className="rounded-2xl border border-border/80 bg-card p-5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
           >
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-500/20">
