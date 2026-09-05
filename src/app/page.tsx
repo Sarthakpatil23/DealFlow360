@@ -25,7 +25,15 @@ export default async function HomePage() {
         <LoginForm />
       )}
 
-      <footer className="mt-8 text-center text-xs text-neutral-400">
+      <footer className="mt-8 text-center text-xs text-neutral-400 space-y-2">
+        <div>
+          <a
+            href="/dashboard"
+            className="text-neutral-600 hover:text-neutral-900 underline transition-colors"
+          >
+            Direct link to Sales Dashboard (Screen 2) →
+          </a>
+        </div>
         <span>DealFlow360 Step 6 — Auth.js Credentials Provider + Bcrypt</span>
       </footer>
     </main>

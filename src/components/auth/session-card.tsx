@@ -58,14 +58,23 @@ export function SessionCard({ user }: SessionCardProps) {
         </div>
       </div>
 
-      <form action={logoutAction} className="pt-2">
-        <button
-          type="submit"
-          className="w-full rounded-md border border-neutral-300 bg-white py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+      <div className="space-y-2 pt-2">
+        <a
+          href="/dashboard"
+          className="w-full inline-flex items-center justify-center rounded-md bg-[#171717] py-2 text-xs font-medium text-white hover:bg-neutral-800 transition-colors"
         >
-          Sign Out
-        </button>
-      </form>
+          Enter Sales Dashboard (Screen 2) →
+        </a>
+
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="w-full rounded-md border border-neutral-300 bg-white py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+          >
+            Sign Out
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
