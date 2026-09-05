@@ -35,6 +35,8 @@ export const authConfig = {
         pathname.startsWith("/products/") ||
         pathname === "/settings" ||
         pathname.startsWith("/settings/") ||
+        pathname === "/discount-approval-setup" ||
+        pathname.startsWith("/discount-approval-setup/") ||
         pathname === "/admin" ||
         pathname.startsWith("/admin/");
 
