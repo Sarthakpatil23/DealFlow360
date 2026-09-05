@@ -14,7 +14,7 @@ Small steps, in order. Each one should be testable before moving to the next.
 - [x] 10. **Build Product Catalog list + detail (Screens 16-17).** Test: create a product with variants and a price list entry, see it saved correctly in DB.
 - [ ] 11. **Build Discount Tier & Approval Chain setup (Screen 18).** Test: change Gold's ceiling, confirm the new number is read from DB (not hardcoded) on next check.
 - [ ] 12. **Build Warehouse & Stock setup (part of Screen 7 backend).** Test: create a warehouse, set stock, see it reflected in the stock table.
-- [ ] 13. **Build Quotation Builder (Screen 4), no discount logic yet.** Test: add lines, quantities, save as Draft, reload and see it persisted.
+- [x] 13. **Build Quotation Builder (Screen 4), no discount logic yet.** Test: add lines, quantities, save as Draft, reload and see it persisted.
 - [ ] 14. **Implement per-line discount limit check (tier vs category, stricter wins).** Test: enter an over-limit discount, line shows OVER status live.
 - [ ] 15. **Implement Blended Discount Risk Score function** (`lib/business-logic/blended-risk-score.ts`). Test: unit test with Q-1042's exact numbers, expect HIGH.
 - [ ] 16. **Wire "Submit for Approval" to risk score + auto-approve on LOW.** Test: a fully-within-limit quote skips approval and goes straight to Approved.
