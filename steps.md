@@ -16,13 +16,13 @@ Small steps, in order. Each one should be testable before moving to the next.
 - [x] 12. **Build Warehouse & Stock setup (part of Screen 7 backend).** Test: create a warehouse, set stock, see it reflected in the stock table.
 - [x] 13. **Build Quotation Builder (Screen 4), no discount logic yet.** Test: add lines, quantities, save as Draft, reload and see it persisted.
 - [x] 14. **Implement per-line discount limit check (tier vs category, stricter wins).** Test: enter an over-limit discount, line shows OVER status live.
-- [ ] 15. **Implement Blended Discount Risk Score function** (`lib/business-logic/blended-risk-score.ts`). Test: unit test with Q-1042's exact numbers, expect HIGH.
+- [x] 15. **Implement Blended Discount Risk Score function** (`lib/business-logic/blended-risk-score.ts`). Test: unit test with Q-1042's exact numbers, expect HIGH.
 - [ ] 16. **Wire "Submit for Approval" to risk score + auto-approve on LOW.** Test: a fully-within-limit quote skips approval and goes straight to Approved.
 - [ ] 17. **Build Approvals List + Approval Detail (Screens 5-6).** Test: Approve/Return/Reject each correctly update stage and log an AuditLogEntry.
 - [ ] 18. **Build Quotations List / Kanban (Screen 3).** Test: a quote's card appears in the correct column matching its current stage, updates live after an approval action.
 - [ ] 19. **Build Upsell/Cross-sell suggestion panel (Screen 4).** Test: adding a suggestion inserts a real order line and updates the margin total instantly.
-- [ ] 20. **Implement warehouse split algorithm** (`lib/business-logic/warehouse-split.ts`). Test: unit test with a quantity split across two warehouses, and one that fully backorders.
-- [ ] 21. **Build Fulfillment List + Detail (Screens 7-8).** Test: Accept Suggested Split marks lines fulfilled with correct warehouse/quantity, Manual Override lets you edit it.
+- [x] 20. **Implement warehouse split algorithm** (`lib/business-logic/warehouse-split.ts`). Test: unit test with a quantity split across two warehouses, and one that fully backorders.
+- [x] 21. **Build Fulfillment List + Detail (Screens 7-8).** Test: Accept Suggested Split marks lines fulfilled with correct warehouse/quantity, Manual Override lets you edit it.
 - [ ] 22. **Build Subscription creation on order confirm** (Subscription record spins up from a subscription-flagged order line). Test: confirm an order with a subscription line, see it appear in Screen 9.
 - [ ] 23. **Implement proration function** (`lib/business-logic/proration.ts`). Test: unit test the worked example ($46→$76 upgrade mid-cycle, expect $15 extra charge).
 - [ ] 24. **Build Subscription List + Billing Detail (Screens 9-10), Modify/Cancel actions.** Test: cancel a subscription mid-cycle, confirm a CreditNote is generated with correct amount.
