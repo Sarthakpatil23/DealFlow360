@@ -5,15 +5,21 @@ import { TopNav } from "@/components/navigation/top-nav";
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { getDashboardData } from "@/lib/dashboard-data";
+import { UserRole } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Sales Dashboard — DealFlow360",
-  description: "Central hub for internal users and sales operations",
+  description: "Role-adaptive central hub for sales operations, management, and finance",
 };
 
-export default async function SalesDashboardPage() {
+export default async function SalesDashboardPage({
+  searchParams,
+}: {
+  searchParams?: { role?: string };
+}) {
   const session = await auth();
 
   // If customer visits internal dashboard, redirect to customer portal
@@ -21,7 +27,32 @@ export default async function SalesDashboardPage() {
     redirect("/portal");
   }
 
-  const { summaryCards, recentActivities } = await getDashboardData();
+  // Resolve role from searchParams override or logged-in session role
+  const resolvedRoleParam = searchParams?.role?.toUpperCase();
+  const validRoles = Object.values(UserRole);
+  const effectiveRole: UserRole =
+    resolvedRoleParam && validRoles.includes(resolvedRoleParam as UserRole)
+      ? (resolvedRoleParam as UserRole)
+      : (session?.user?.role as UserRole) || UserRole.REP;
+
+  // Resolve user id context
+  let effectiveUserId = session?.user?.id;
+  if (effectiveRole !== session?.user?.role && effectiveRole === UserRole.REP) {
+    const defaultRep = await prisma.user.findFirst({
+      where: { role: UserRole.REP },
+      select: { id: true, name: true },
+    });
+    if (defaultRep) effectiveUserId = defaultRep.id;
+  }
+
+  const userContext = {
+    id: effectiveUserId,
+    role: effectiveRole,
+    name: session?.user?.name,
+  };
+
+  const { roleBadge, summaryCards, quickActions, recentActivities } =
+    await getDashboardData(userContext);
 
   return (
     <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-[#171717] dark:text-[#ededed] flex flex-col font-sans transition-colors duration-150">
@@ -34,21 +65,65 @@ export default async function SalesDashboardPage() {
         <header className="space-y-1">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#171717] dark:text-[#ededed]">
-                Sales Dashboard / Home
-              </h1>
-              <p className="text-sm text-[#737373] dark:text-[#a1a1a1]">
-                Central hub, links out to every module below
-              </p>
-            </div>
-            {session?.user && (
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  {session.user.name || session.user.email} ({session.user.role})
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#171717] dark:text-[#ededed]">
+                  Sales Dashboard / Home
+                </h1>
+                <span
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${roleBadge.colorClass}`}
+                >
+                  {roleBadge.label}
                 </span>
               </div>
-            )}
+              <p className="text-sm text-[#737373] dark:text-[#a1a1a1] mt-1">
+                {roleBadge.description}
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:items-end gap-1.5 self-start sm:self-auto">
+              {session?.user && (
+                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  {session.user.name || session.user.email} ({effectiveRole})
+                </span>
+              )}
+              {/* Clean, subtle tab switcher for testing different roles side-by-side in different tabs */}
+              <div className="flex items-center gap-1.5 text-[11px] text-[#737373] dark:text-[#a1a1a1]">
+                <span className="text-[10px] uppercase tracking-wider text-[#a1a1a1] dark:text-[#737373]">View as:</span>
+                <Link
+                  href="/dashboard?role=REP"
+                  className={`px-1.5 py-0.5 rounded transition-colors ${
+                    effectiveRole === UserRole.REP
+                      ? "font-semibold text-[#171717] dark:text-[#ededed] bg-neutral-200/70 dark:bg-neutral-800"
+                      : "hover:text-[#171717] dark:hover:text-[#ededed]"
+                  }`}
+                >
+                  Rep
+                </Link>
+                <span>·</span>
+                <Link
+                  href="/dashboard?role=MANAGER"
+                  className={`px-1.5 py-0.5 rounded transition-colors ${
+                    effectiveRole === UserRole.MANAGER
+                      ? "font-semibold text-[#171717] dark:text-[#ededed] bg-neutral-200/70 dark:bg-neutral-800"
+                      : "hover:text-[#171717] dark:hover:text-[#ededed]"
+                  }`}
+                >
+                  Manager
+                </Link>
+                <span>·</span>
+                <Link
+                  href="/dashboard?role=FINANCE"
+                  className={`px-1.5 py-0.5 rounded transition-colors ${
+                    effectiveRole === UserRole.FINANCE
+                      ? "font-semibold text-[#171717] dark:text-[#ededed] bg-neutral-200/70 dark:bg-neutral-800"
+                      : "hover:text-[#171717] dark:hover:text-[#ededed]"
+                  }`}
+                >
+                  Finance
+                </Link>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -62,29 +137,36 @@ export default async function SalesDashboardPage() {
               key={card.id}
               title={card.title}
               metric={card.metric}
+              subtitle={card.subtitle}
               href={card.href}
             />
           ))}
         </section>
 
-        {/* Action Buttons */}
+        {/* Quick Action Buttons */}
         <section
           aria-label="Quick Actions"
           className="flex flex-wrap items-center gap-3 pt-1"
         >
-          <Link
-            href="/quotations/new"
-            className="inline-flex items-center justify-center bg-[#0070f3] text-white hover:bg-[#0761d1] px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0070f3] focus:ring-offset-2"
-          >
-            + New Quotation
-          </Link>
-
-          <Link
-            href="/approvals"
-            className="inline-flex items-center justify-center bg-white dark:bg-[#0a0a0a] border border-[#ebebeb] dark:border-[#262626] text-[#171717] dark:text-[#ededed] hover:bg-neutral-50 dark:hover:bg-[#171717] hover:border-neutral-300 dark:hover:border-neutral-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#171717] dark:focus:ring-white focus:ring-offset-2 dark:focus:ring-offset-black"
-          >
-            View Approvals
-          </Link>
+          {quickActions.map((action, idx) =>
+            action.variant === "primary" ? (
+              <Link
+                key={idx}
+                href={action.href}
+                className="inline-flex items-center justify-center bg-[#0070f3] text-white hover:bg-[#0761d1] px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0070f3] focus:ring-offset-2"
+              >
+                {action.label}
+              </Link>
+            ) : (
+              <Link
+                key={idx}
+                href={action.href}
+                className="inline-flex items-center justify-center bg-white dark:bg-[#0a0a0a] border border-[#ebebeb] dark:border-[#262626] text-[#171717] dark:text-[#ededed] hover:bg-neutral-50 dark:hover:bg-[#171717] hover:border-neutral-300 dark:hover:border-neutral-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#171717] dark:focus:ring-white focus:ring-offset-2 dark:focus:ring-offset-black"
+              >
+                {action.label}
+              </Link>
+            )
+          )}
         </section>
 
         {/* Recent Activity Section */}
