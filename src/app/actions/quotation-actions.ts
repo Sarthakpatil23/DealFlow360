@@ -65,70 +65,6 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
       const customerTier = (defaultCustomer?.tier || "GOLD") as any;
       const customerCurrency = defaultCustomer?.preferredCurrency || "USD";
 
-      // Look up default seed catalog products to set real productIds
-      const catalogProducts = await prisma.product.findMany({
-        where: { isArchived: false },
-      });
-
-      const pLaptop = catalogProducts.find((p) => p.name.toLowerCase().includes("laptop"));
-      const pService = catalogProducts.find(
-        (p) => p.name.toLowerCase().includes("service") || p.name.toLowerCase().includes("setup")
-      );
-      const pWarranty = catalogProducts.find((p) => p.name.toLowerCase().includes("warranty"));
-
-      const orderLines: LineItemData[] = [];
-
-      if (pLaptop) {
-        const lim = calculateLineDiscountLimit({
-          customerTier,
-          productCategory: pLaptop.category,
-          discountPercent: 12,
-        });
-        orderLines.push({
-          productId: pLaptop.id,
-          productName: pLaptop.name,
-          quantity: 2,
-          unitPrice: Number(pLaptop.basePrice),
-          discountPercent: 12,
-          effectiveLimitPercent: lim.effectiveLimitPercent,
-          isUpsellAdd: false,
-        });
-      }
-
-      if (pService) {
-        const lim = calculateLineDiscountLimit({
-          customerTier,
-          productCategory: pService.category,
-          discountPercent: 18,
-        });
-        orderLines.push({
-          productId: pService.id,
-          productName: pService.name,
-          quantity: 1,
-          unitPrice: Number(pService.basePrice),
-          discountPercent: 18,
-          effectiveLimitPercent: lim.effectiveLimitPercent,
-          isUpsellAdd: false,
-        });
-      }
-
-      if (pWarranty) {
-        const lim = calculateLineDiscountLimit({
-          customerTier,
-          productCategory: pWarranty.category,
-          discountPercent: 10,
-        });
-        orderLines.push({
-          productId: pWarranty.id,
-          productName: pWarranty.name,
-          quantity: 1,
-          unitPrice: Number(pWarranty.basePrice),
-          discountPercent: 10,
-          effectiveLimitPercent: lim.effectiveLimitPercent,
-          isUpsellAdd: false,
-        });
-      }
-
       return {
         success: true,
         data: {
@@ -142,7 +78,7 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
           } Max)`,
           stage: "DRAFT",
           currency: customerCurrency,
-          orderLines,
+          orderLines: [],
         } as QuotationDetailData,
       };
     }
