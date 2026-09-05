@@ -42,6 +42,14 @@ export async function saveDiscountConfigAction(
   input: SaveDiscountConfigInput
 ): Promise<SaveDiscountConfigResult> {
   try {
+    const session = await auth();
+    if (session?.user && session.user.role !== UserRole.MANAGER && session.user.role !== UserRole.ADMIN) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Sales Managers and Administrators are permitted to configure discount governance policies.",
+      };
+    }
+
     // 1. Update or upsert Tier Discount Ceilings
     for (const t of input.tierCeilings) {
       const discount = Math.max(0, Math.min(100, Number(t.maxDiscountPercent) || 0));

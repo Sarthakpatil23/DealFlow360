@@ -68,6 +68,8 @@ export interface ApprovalDetailData {
   auditTrail: AuditTrailItem[];
   currentRequiredRole: ApprovalStepRole | null;
   canApprove: boolean;
+  userRole?: string;
+  statusNotice?: string;
 }
 
 /**
@@ -162,7 +164,8 @@ export async function getApprovalsListData(): Promise<ApprovalsScreenData> {
  * Loads the complete approval detail and audit trail for Screen 6.
  */
 export async function getApprovalDetailData(
-  idOrCode: string
+  idOrCode: string,
+  userRole?: string
 ): Promise<ApprovalDetailData | null> {
   try {
     const q = await prisma.quotation.findFirst({
@@ -238,6 +241,38 @@ export async function getApprovalDetailData(
     const pendingStep = q.approvalSteps.find((s) => s.status === ApprovalStepStatus.PENDING);
     const currentRequiredRole = pendingStep ? pendingStep.requiredRole : null;
 
+    let canApprove = false;
+    let statusNotice: string | undefined;
+
+    if (q.stage === QuotationStage.PENDING_APPROVAL && pendingStep) {
+      const requiredRoleName =
+        pendingStep.requiredRole === ApprovalStepRole.SALES_MANAGER ? "Sales Manager" : "Finance";
+
+      if (!userRole) {
+        canApprove = true;
+      } else if (userRole === "ADMIN") {
+        canApprove = true;
+      } else if (userRole === "MANAGER") {
+        if (pendingStep.requiredRole === ApprovalStepRole.SALES_MANAGER) {
+          canApprove = true;
+        } else {
+          statusNotice = "Step 1 approved. Awaiting second-level review by Finance.";
+        }
+      } else if (userRole === "FINANCE") {
+        if (pendingStep.requiredRole === ApprovalStepRole.FINANCE) {
+          canApprove = true;
+        } else {
+          statusNotice = "Awaiting initial Level 1 review from Sales Manager.";
+        }
+      } else if (userRole === "REP") {
+        statusNotice = `Submitted for review. Awaiting sign-off by ${requiredRoleName}.`;
+      }
+    } else if (q.stage === QuotationStage.APPROVED || q.stage === QuotationStage.CONFIRMED) {
+      statusNotice = "This quotation has been approved and moved to order processing.";
+    } else if (q.stage === QuotationStage.REJECTED) {
+      statusNotice = "This quotation has been rejected.";
+    }
+
     return {
       quotationId: q.id,
       displayCode: q.displayCode,
@@ -252,7 +287,9 @@ export async function getApprovalDetailData(
       steps,
       auditTrail,
       currentRequiredRole,
-      canApprove: q.stage === QuotationStage.PENDING_APPROVAL && Boolean(pendingStep),
+      canApprove,
+      userRole,
+      statusNotice,
     };
   } catch (error) {
     console.error("Error loading approval detail:", error);

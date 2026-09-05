@@ -107,6 +107,15 @@ export const authConfig = {
         return Response.redirect(new URL("/unauthorized", nextUrl));
       }
 
+      if (
+        (pathname === "/discount-approval-setup" ||
+          pathname.startsWith("/discount-approval-setup/")) &&
+        role !== "MANAGER" &&
+        role !== "ADMIN"
+      ) {
+        return Response.redirect(new URL("/unauthorized", nextUrl));
+      }
+
       return true;
     },
     async jwt({ token, user }) {
