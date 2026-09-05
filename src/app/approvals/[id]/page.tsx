@@ -4,6 +4,8 @@ import { TopNav } from "@/components/navigation/top-nav";
 import { getApprovalDetailData } from "@/lib/approval-data";
 import { ApprovalDetailView } from "@/components/approvals/approval-detail-view";
 
+import { auth } from "@/auth";
+
 interface PageProps {
   params: { id: string };
 }
@@ -11,7 +13,8 @@ interface PageProps {
 export const dynamic = "force-dynamic";
 
 export default async function ApprovalDetailPage({ params }: PageProps) {
-  const data = await getApprovalDetailData(params.id);
+  const session = await auth();
+  const data = await getApprovalDetailData(params.id, session?.user?.role);
 
   if (!data) {
     return (

@@ -72,6 +72,36 @@ export async function approveQuotationAction(
       (s) => s.status === ApprovalStepStatus.PENDING
     );
 
+    if (actor.role === "REP") {
+      return {
+        success: false,
+        error: "Unauthorized: Sales Representatives are not permitted to approve quotations. Approvals must be performed by the designated Manager or Finance authority.",
+      };
+    }
+
+    if (pendingStep) {
+      if (
+        pendingStep.requiredRole === ApprovalStepRole.SALES_MANAGER &&
+        actor.role !== "MANAGER" &&
+        actor.role !== "ADMIN"
+      ) {
+        return {
+          success: false,
+          error: "Unauthorized: This approval step requires a Sales Manager role.",
+        };
+      }
+      if (
+        pendingStep.requiredRole === ApprovalStepRole.FINANCE &&
+        actor.role !== "FINANCE" &&
+        actor.role !== "ADMIN"
+      ) {
+        return {
+          success: false,
+          error: "Unauthorized: This approval step requires a Finance role.",
+        };
+      }
+    }
+
     if (!pendingStep) {
       // If no steps pending, mark quotation directly approved
       await prisma.quotation.update({
@@ -175,6 +205,13 @@ export async function returnQuotationAction(
       return { success: false, error: "Authenticated user not found." };
     }
 
+    if (actor.role === "REP") {
+      return {
+        success: false,
+        error: "Unauthorized: Sales Representatives are not permitted to return quotations. This action is restricted to designated approvers.",
+      };
+    }
+
     const quotation = await prisma.quotation.findUnique({
       where: { id: quotationId },
       include: { approvalSteps: true },
@@ -190,6 +227,27 @@ export async function returnQuotationAction(
     );
 
     if (pendingStep) {
+      if (
+        pendingStep.requiredRole === ApprovalStepRole.SALES_MANAGER &&
+        actor.role !== "MANAGER" &&
+        actor.role !== "ADMIN"
+      ) {
+        return {
+          success: false,
+          error: "Unauthorized: This approval step requires a Sales Manager role.",
+        };
+      }
+      if (
+        pendingStep.requiredRole === ApprovalStepRole.FINANCE &&
+        actor.role !== "FINANCE" &&
+        actor.role !== "ADMIN"
+      ) {
+        return {
+          success: false,
+          error: "Unauthorized: This approval step requires a Finance role.",
+        };
+      }
+
       await prisma.approvalStep.update({
         where: { id: pendingStep.id },
         data: {
@@ -252,6 +310,13 @@ export async function rejectQuotationAction(
       return { success: false, error: "Authenticated user not found." };
     }
 
+    if (actor.role === "REP") {
+      return {
+        success: false,
+        error: "Unauthorized: Sales Representatives are not permitted to reject quotations. This action is restricted to designated approvers.",
+      };
+    }
+
     const quotation = await prisma.quotation.findUnique({
       where: { id: quotationId },
       include: { approvalSteps: true },
@@ -266,6 +331,27 @@ export async function rejectQuotationAction(
     );
 
     if (pendingStep) {
+      if (
+        pendingStep.requiredRole === ApprovalStepRole.SALES_MANAGER &&
+        actor.role !== "MANAGER" &&
+        actor.role !== "ADMIN"
+      ) {
+        return {
+          success: false,
+          error: "Unauthorized: This approval step requires a Sales Manager role.",
+        };
+      }
+      if (
+        pendingStep.requiredRole === ApprovalStepRole.FINANCE &&
+        actor.role !== "FINANCE" &&
+        actor.role !== "ADMIN"
+      ) {
+        return {
+          success: false,
+          error: "Unauthorized: This approval step requires a Finance role.",
+        };
+      }
+
       await prisma.approvalStep.update({
         where: { id: pendingStep.id },
         data: {

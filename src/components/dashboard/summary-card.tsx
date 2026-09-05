@@ -4,9 +4,10 @@ interface SummaryCardProps {
   title: string;
   metric: string;
   href: string;
+  subtitle?: string;
 }
 
-export function SummaryCard({ title, metric, href }: SummaryCardProps) {
+export function SummaryCard({ title, metric, href, subtitle }: SummaryCardProps) {
   return (
     <Link
       href={href}
@@ -18,6 +19,11 @@ export function SummaryCard({ title, metric, href }: SummaryCardProps) {
       <p className="mt-3 text-sm text-[#737373] dark:text-[#a1a1a1] font-normal leading-relaxed">
         {metric}
       </p>
+      {subtitle && (
+        <p className="mt-1 text-xs text-[#a1a1a1] dark:text-[#737373] leading-normal">
+          {subtitle}
+        </p>
+      )}
     </Link>
   );
 }

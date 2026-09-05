@@ -1,11 +1,19 @@
 import { prisma } from "@/lib/prisma";
-import { QuotationStage } from "@prisma/client";
+import {
+  QuotationStage,
+  UserRole,
+  ApprovalStepStatus,
+  ApprovalStepRole,
+  FulfillmentStatus,
+  InvoiceStatus,
+} from "@prisma/client";
 
 export interface SummaryCardItem {
   id: string;
   title: string;
   metric: string;
   href: string;
+  subtitle?: string;
 }
 
 export interface RecentActivityItem {
@@ -13,78 +21,323 @@ export interface RecentActivityItem {
   text: string;
   href: string;
   targetScreen?: string;
+  timestamp?: string;
+}
+
+export interface DashboardQuickAction {
+  label: string;
+  href: string;
+  variant: "primary" | "secondary";
+}
+
+export interface RoleBadgeInfo {
+  label: string;
+  role: UserRole;
+  description: string;
+  colorClass: string;
 }
 
 export interface DashboardData {
+  roleBadge: RoleBadgeInfo;
   summaryCards: SummaryCardItem[];
+  quickActions: DashboardQuickAction[];
   recentActivities: RecentActivityItem[];
 }
 
+export interface UserContext {
+  id?: string;
+  role: UserRole;
+  name?: string | null;
+}
+
 /**
- * Fetches dashboard data combining database records and spec-defined dashboard values.
- * Strictly adheres to project.md Screen 2 and sales_reference.
+ * Fetches dashboard data tailored dynamically to the active role.
+ * Strictly adheres to project.md Screen 2 and DESIGN.md styling.
  */
-export async function getDashboardData(): Promise<DashboardData> {
-  // Spec default fallback numbers
-  let pendingMetric = "4 quotations waiting";
-  let openMetric = "12 active deals";
-  let atRiskMetric = "3 flagged by Deal Health";
+export async function getDashboardData(user?: UserContext): Promise<DashboardData> {
+  const role = user?.role || UserRole.REP;
+  const userId = user?.id;
 
-  try {
-    const [pendingCount, openCount, atRiskCount] = await Promise.all([
-      prisma.quotation.count({
-        where: { stage: QuotationStage.PENDING_APPROVAL },
-      }),
-      prisma.quotation.count({
-        where: {
-          stage: {
-            in: [
-              QuotationStage.DRAFT,
-              QuotationStage.PENDING_APPROVAL,
-              QuotationStage.APPROVED,
-              QuotationStage.NEGOTIATION,
-            ],
-          },
-        },
-      }),
-      prisma.dealHealthAlert.count(),
-    ]);
+  // 1. Role Badge & Metadata
+  let roleBadge: RoleBadgeInfo = {
+    label: "Sales Representative",
+    role: UserRole.REP,
+    description: "Personal pipeline, quotation builder & customer negotiation",
+    colorClass:
+      "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60",
+  };
 
-    const totalQuotations = await prisma.quotation.count();
-    if (totalQuotations > 0) {
-      pendingMetric = `${pendingCount} quotation${pendingCount === 1 ? "" : "s"} waiting`;
-      openMetric = `${openCount} active deal${openCount === 1 ? "" : "s"}`;
-      atRiskMetric = `${atRiskCount} flagged by Deal Health`;
-    }
-  } catch (error) {
-    console.warn("Could not query DB for dashboard counts, using spec defaults:", error);
+  if (role === UserRole.MANAGER) {
+    roleBadge = {
+      label: "Sales Manager",
+      role: UserRole.MANAGER,
+      description: "Team pipeline oversight, approval queue & discount governance",
+      colorClass:
+        "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 dark:border-purple-800/60",
+    };
+  } else if (role === UserRole.FINANCE) {
+    roleBadge = {
+      label: "Finance & Operations",
+      role: UserRole.FINANCE,
+      description: "High-risk margin signoff, invoice billing & warehouse fulfillment",
+      colorClass:
+        "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800/60",
+    };
+  } else if (role === UserRole.ADMIN) {
+    roleBadge = {
+      label: "System Administrator",
+      role: UserRole.ADMIN,
+      description: "Enterprise platform configuration, pricing governance & reporting",
+      colorClass:
+        "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800/60",
+    };
   }
 
-  const summaryCards: SummaryCardItem[] = [
-    {
-      id: "pending-approvals",
-      title: "Pending Approvals",
-      metric: pendingMetric,
-      href: "/approvals",
-    },
-    {
-      id: "open-quotations",
-      title: "Open Quotations",
-      metric: openMetric,
-      href: "/quotations",
-    },
-    {
-      id: "at-risk-deals",
-      title: "At-Risk Deals",
-      metric: atRiskMetric,
-      href: "/deal-health",
-    },
-  ];
+  // 2. Compute Role-Tailored Metrics & Summary Cards
+  let summaryCards: SummaryCardItem[] = [];
+  let quickActions: DashboardQuickAction[] = [];
 
-  // Canonical fallback activities from project.md Screen 2 & sales_reference.png:
-  // - Acme Corp quotation approved by Finance
-  // - Beta Industries requested a discount change
-  // - East Depot stock updated for Order #2291
+  try {
+    if (role === UserRole.REP) {
+      const [myPendingCount, myOpenCount, myFlaggedCount] = await Promise.all([
+        userId
+          ? prisma.quotation.count({
+              where: { ownerRepId: userId, stage: QuotationStage.PENDING_APPROVAL },
+            })
+          : prisma.quotation.count({ where: { stage: QuotationStage.PENDING_APPROVAL } }),
+        userId
+          ? prisma.quotation.count({
+              where: {
+                ownerRepId: userId,
+                stage: {
+                  in: [
+                    QuotationStage.DRAFT,
+                    QuotationStage.PENDING_APPROVAL,
+                    QuotationStage.APPROVED,
+                    QuotationStage.NEGOTIATION,
+                  ],
+                },
+              },
+            })
+          : prisma.quotation.count(),
+        userId
+          ? prisma.dealHealthAlert.count({
+              where: { quotation: { ownerRepId: userId } },
+            })
+          : prisma.dealHealthAlert.count(),
+      ]);
+
+      summaryCards = [
+        {
+          id: "pending-approvals",
+          title: "Pending Approvals",
+          metric: `${myPendingCount} of your quotations waiting`,
+          subtitle: "Awaiting manager or finance review",
+          href: "/approvals",
+        },
+        {
+          id: "open-quotations",
+          title: "Open Quotations",
+          metric: `${myOpenCount} of your active deals`,
+          subtitle: "Drafts, active quotes & customer negotiations",
+          href: "/quotations",
+        },
+        {
+          id: "at-risk-deals",
+          title: "At-Risk Deals",
+          metric: `${myFlaggedCount} of your deals flagged`,
+          subtitle: "High discount or slow progression warnings",
+          href: "/deal-health",
+        },
+      ];
+
+      quickActions = [
+        { label: "+ New Quotation", href: "/quotations/new", variant: "primary" },
+        { label: "View Approvals", href: "/approvals", variant: "secondary" },
+      ];
+    } else if (role === UserRole.MANAGER) {
+      const [managerPendingCount, teamOpenCount, teamAlertsCount] = await Promise.all([
+        prisma.approvalStep.count({
+          where: {
+            requiredRole: ApprovalStepRole.SALES_MANAGER,
+            status: ApprovalStepStatus.PENDING,
+          },
+        }),
+        prisma.quotation.count({
+          where: {
+            stage: {
+              in: [
+                QuotationStage.DRAFT,
+                QuotationStage.PENDING_APPROVAL,
+                QuotationStage.APPROVED,
+                QuotationStage.NEGOTIATION,
+              ],
+            },
+          },
+        }),
+        prisma.dealHealthAlert.count(),
+      ]);
+
+      summaryCards = [
+        {
+          id: "manager-pending-approvals",
+          title: "Approvals Awaiting Review",
+          metric: `${managerPendingCount} quotations awaiting manager review`,
+          subtitle: "Step 1 discount reviews requiring your signoff",
+          href: "/approvals",
+        },
+        {
+          id: "manager-team-pipeline",
+          title: "Team Open Pipeline",
+          metric: `${teamOpenCount} active deals across team`,
+          subtitle: "Total pipeline across all sales reps",
+          href: "/quotations",
+        },
+        {
+          id: "manager-at-risk-deals",
+          title: "At-Risk Deals",
+          metric: `${teamAlertsCount} flagged by Deal Health`,
+          subtitle: "Team deals requiring rep coaching or escalation",
+          href: "/deal-health",
+        },
+      ];
+
+      quickActions = [
+        { label: "Review Approvals", href: "/approvals", variant: "primary" },
+        { label: "Deal Health Console", href: "/deal-health", variant: "secondary" },
+        { label: "Discount Rules Setup", href: "/discount-approval-setup", variant: "secondary" },
+      ];
+    } else if (role === UserRole.FINANCE) {
+      const [financePendingCount, unpaidInvoices, backorderCount] = await Promise.all([
+        prisma.approvalStep.count({
+          where: {
+            requiredRole: ApprovalStepRole.FINANCE,
+            status: ApprovalStepStatus.PENDING,
+          },
+        }),
+        prisma.invoice.findMany({
+          where: { status: InvoiceStatus.UNPAID },
+          select: { amount: true },
+        }),
+        prisma.fulfillment.count({
+          where: {
+            status: {
+              in: [FulfillmentStatus.BACKORDER, FulfillmentStatus.SPLIT_PENDING],
+            },
+          },
+        }),
+      ]);
+
+      const unpaidTotal = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
+
+      summaryCards = [
+        {
+          id: "finance-high-risk-approvals",
+          title: "High-Risk Approvals",
+          metric: `${financePendingCount} high-risk quotations awaiting finance`,
+          subtitle: "Step 2 margin approvals exceeding discount ceiling",
+          href: "/approvals",
+        },
+        {
+          id: "finance-unpaid-invoices",
+          title: "Unpaid Invoices",
+          metric: `${unpaidInvoices.length} unpaid invoices ($${unpaidTotal.toLocaleString()})`,
+          subtitle: "Pending payment & cash collection",
+          href: "/invoices",
+        },
+        {
+          id: "finance-fulfillment-splits",
+          title: "Fulfillment & Backorders",
+          metric: `${backorderCount} orders awaiting stock allocation`,
+          subtitle: "Warehouse splits & inventory allocation",
+          href: "/fulfillment",
+        },
+      ];
+
+      quickActions = [
+        { label: "Review Approvals", href: "/approvals", variant: "primary" },
+        { label: "Invoices & Payments", href: "/invoices", variant: "secondary" },
+        { label: "Fulfillment & Stock", href: "/fulfillment", variant: "secondary" },
+      ];
+    } else {
+      // ADMIN
+      const [allPendingCount, allOpenCount, totalAlertsCount] = await Promise.all([
+        prisma.quotation.count({ where: { stage: QuotationStage.PENDING_APPROVAL } }),
+        prisma.quotation.count({
+          where: {
+            stage: {
+              in: [
+                QuotationStage.DRAFT,
+                QuotationStage.PENDING_APPROVAL,
+                QuotationStage.APPROVED,
+                QuotationStage.NEGOTIATION,
+              ],
+            },
+          },
+        }),
+        prisma.dealHealthAlert.count(),
+      ]);
+
+      summaryCards = [
+        {
+          id: "admin-pending-approvals",
+          title: "All Pending Approvals",
+          metric: `${allPendingCount} quotations waiting across company`,
+          subtitle: "Platform-wide approval queue",
+          href: "/approvals",
+        },
+        {
+          id: "admin-open-quotations",
+          title: "Total Open Pipeline",
+          metric: `${allOpenCount} active deals across company`,
+          subtitle: "Across all enterprise workspaces",
+          href: "/quotations",
+        },
+        {
+          id: "admin-at-risk-deals",
+          title: "System Governance Alerts",
+          metric: `${totalAlertsCount} flagged by Deal Health`,
+          subtitle: "Operational & deal health anomalies",
+          href: "/deal-health",
+        },
+      ];
+
+      quickActions = [
+        { label: "Review Approvals Queue", href: "/approvals", variant: "primary" },
+        { label: "Discount Rules Setup", href: "/discount-approval-setup", variant: "secondary" },
+        { label: "Fulfillment & Stock", href: "/fulfillment", variant: "secondary" },
+      ];
+    }
+  } catch (error) {
+    console.warn("Could not query DB for role metrics, using spec defaults:", error);
+    summaryCards = [
+      {
+        id: "pending-approvals",
+        title: "Pending Approvals",
+        metric: "4 quotations waiting",
+        href: "/approvals",
+      },
+      {
+        id: "open-quotations",
+        title: "Open Quotations",
+        metric: "12 active deals",
+        href: "/quotations",
+      },
+      {
+        id: "at-risk-deals",
+        title: "At-Risk Deals",
+        metric: "3 flagged by Deal Health",
+        href: "/deal-health",
+      },
+    ];
+
+    quickActions = [
+      { label: "+ New Quotation", href: "/quotations/new", variant: "primary" },
+      { label: "View Approvals", href: "/approvals", variant: "secondary" },
+    ];
+  }
+
+  // 3. Activity Feed Scoped to Role
   const canonicalActivities: RecentActivityItem[] = [
     {
       id: "activity-canonical-1",
@@ -101,15 +354,21 @@ export async function getDashboardData(): Promise<DashboardData> {
     {
       id: "activity-canonical-3",
       text: "East Depot stock updated for Order #2291",
-      href: "/fulfillment/Q-2291",
-      targetScreen: "Screen 7 / Screen 8 — Fulfillment and Stock",
+      href: "/fulfillment",
+      targetScreen: "Screen 7 — Fulfillment and Stock",
     },
   ];
 
   let recentActivities: RecentActivityItem[] = [];
 
   try {
+    const auditWhere: any = {};
+    if (role === UserRole.REP && userId) {
+      auditWhere.quotation = { ownerRepId: userId };
+    }
+
     const dbAuditLogs = await prisma.auditLogEntry.findMany({
+      where: Object.keys(auditWhere).length > 0 ? auditWhere : undefined,
       take: 5,
       orderBy: { createdAt: "desc" },
       include: {
@@ -163,6 +422,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           text,
           href,
           targetScreen,
+          timestamp: log.createdAt.toISOString(),
         };
       });
     }
@@ -173,13 +433,14 @@ export async function getDashboardData(): Promise<DashboardData> {
   if (recentActivities.length === 0) {
     recentActivities = canonicalActivities;
   } else if (recentActivities.length < 3) {
-    // Supplement canonical reference items so dashboard displays a complete set of 3+ items
     const needed = 3 - recentActivities.length;
     recentActivities = [...recentActivities, ...canonicalActivities.slice(0, needed)];
   }
 
   return {
+    roleBadge,
     summaryCards,
+    quickActions,
     recentActivities,
   };
 }

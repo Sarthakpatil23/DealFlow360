@@ -14,6 +14,14 @@ export async function nudgeRepAction(
 ): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
     const session = await auth();
+    const actorRole = session?.user?.role;
+    if (!actorRole || (actorRole !== "MANAGER" && actorRole !== "ADMIN")) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Sales Managers and Admins can nudge sales representatives.",
+      };
+    }
+
     const q = await prisma.quotation.findUnique({
       where: { id: quotationId },
       include: { ownerRep: true },
@@ -76,6 +84,14 @@ export async function escalateDealAction(
 ): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
     const session = await auth();
+    const actorRole = session?.user?.role;
+    if (!actorRole || (actorRole !== "MANAGER" && actorRole !== "ADMIN")) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Sales Managers and Admins can escalate deals.",
+      };
+    }
+
     const q = await prisma.quotation.findUnique({
       where: { id: quotationId },
       include: { ownerRep: true },

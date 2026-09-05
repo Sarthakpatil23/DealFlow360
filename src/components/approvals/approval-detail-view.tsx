@@ -391,8 +391,8 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
         </div>
       </div>
 
-      {/* Action Buttons: Approve, Return for Revision, Reject */}
-      {data.canApprove && (
+      {/* Action Buttons: Approve, Return for Revision, Reject OR Role Status Notice */}
+      {data.canApprove ? (
         <div className="flex flex-wrap items-center justify-end gap-3 p-4 rounded-xl border border-border bg-card shadow-sm">
           <button
             type="button"
@@ -424,7 +424,12 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
             Approve Quotation
           </button>
         </div>
-      )}
+      ) : data.statusNotice ? (
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-[#ebebeb] dark:border-[#262626] bg-[#f9fafb] dark:bg-[#121212] text-xs sm:text-sm text-[#737373] dark:text-[#a1a1a1] shadow-2xs">
+          <Info className="h-4 w-4 text-neutral-500 flex-shrink-0" />
+          <p className="font-medium">{data.statusNotice}</p>
+        </div>
+      ) : null}
 
       {/* Return for Revision Modal */}
       {returnModalOpen && (
