@@ -38,15 +38,9 @@ export const authConfig = {
         pathname === "/admin" ||
         pathname.startsWith("/admin/");
 
-      // Root path '/' redirection
+      // Root path '/' is public (Marketing Landing Page)
       if (pathname === "/") {
-        if (!isLoggedIn) {
-          return Response.redirect(new URL("/login", nextUrl));
-        }
-        if (role === "CUSTOMER") {
-          return Response.redirect(new URL("/portal", nextUrl));
-        }
-        return Response.redirect(new URL("/dashboard", nextUrl));
+        return true;
       }
 
       // Public routes: redirect logged in users to their respective home
