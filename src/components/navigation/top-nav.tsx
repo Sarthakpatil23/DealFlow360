@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTransition } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { logoutAction } from "@/app/actions/auth-actions";
+import { LogOut, Loader2 } from "lucide-react";
 
 export interface NavItem {
   label: string;
@@ -23,6 +26,13 @@ export const NAV_ITEMS: NavItem[] = [
 
 export function TopNav() {
   const pathname = usePathname();
+  const [isLoggingOut, startTransition] = useTransition();
+
+  function handleLogout() {
+    startTransition(async () => {
+      await logoutAction();
+    });
+  }
 
   return (
     <header className="w-full bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-border/80 sticky top-0 z-40 transition-colors duration-150 shadow-2xs">
@@ -40,7 +50,7 @@ export function TopNav() {
           </Link>
         </div>
 
-        {/* Navigation Items & Theme Toggle */}
+        {/* Navigation Items, Theme Toggle & Logout */}
         <div className="flex items-center gap-3 overflow-x-auto no-scrollbar h-full">
           <nav
             className="flex items-center gap-1.5"
@@ -69,8 +79,22 @@ export function TopNav() {
             })}
           </nav>
 
-          <div className="shrink-0 pl-2 border-l border-[#ebebeb] dark:border-[#262626]">
+          <div className="flex items-center gap-2 shrink-0 pl-2 border-l border-[#ebebeb] dark:border-[#262626]">
             <ThemeToggle />
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              title="Sign Out"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#4d4d4d] dark:text-[#a1a1a1] hover:text-destructive dark:hover:text-destructive hover:bg-destructive/10 border border-[#ebebeb] dark:border-[#262626] rounded-md transition-all duration-150 cursor-pointer disabled:opacity-50"
+            >
+              {isLoggingOut ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <LogOut className="h-3.5 w-3.5" />
+              )}
+              <span className="hidden sm:inline">Log Out</span>
+            </button>
           </div>
         </div>
       </div>
