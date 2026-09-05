@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/actions/auth-actions";
+import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
 import { 
   FileText, 
@@ -112,6 +113,8 @@ export default async function DashboardPage() {
                 {session.user.email}
               </div>
             </div>
+
+            <ThemeToggle />
 
             <form action={logoutAction}>
               <button

@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/actions/auth-actions";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { prisma } from "@/lib/prisma";
 import { 
   Building2, 
@@ -80,6 +81,8 @@ export default async function CustomerPortalPage() {
                 {customer.tier} TIER
               </span>
             )}
+
+            <ThemeToggle />
 
             <form action={logoutAction}>
               <button

@@ -101,7 +101,7 @@ export async function signupAction(
       await signIn("credentials", {
         email,
         password,
-        redirectTo: "/portal",
+        redirectTo: "/",
       });
     } else {
       // Internal staff
@@ -121,7 +121,7 @@ export async function signupAction(
       await signIn("credentials", {
         email,
         password,
-        redirectTo: "/dashboard",
+        redirectTo: "/",
       });
     }
 

@@ -12,32 +12,65 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        card: {
+          DEFAULT: "var(--card)",
+          foreground: "var(--card-foreground)",
+        },
+        popover: {
+          DEFAULT: "var(--popover)",
+          foreground: "var(--popover-foreground)",
+        },
+        primary: {
+          DEFAULT: "var(--primary)",
+          foreground: "var(--primary-foreground)",
+        },
+        secondary: {
+          DEFAULT: "var(--secondary)",
+          foreground: "var(--secondary-foreground)",
+        },
+        muted: {
+          DEFAULT: "var(--muted)",
+          foreground: "var(--muted-foreground)",
+        },
+        accent: {
+          DEFAULT: "var(--accent)",
+          foreground: "var(--accent-foreground)",
+        },
+        destructive: {
+          DEFAULT: "var(--destructive)",
+          foreground: "var(--destructive-foreground)",
+        },
         border: "var(--border)",
         input: "var(--input)",
         ring: "var(--ring)",
-        primary: {
+        // Geist palette aliases from DESIGN.md
+        ink: {
           DEFAULT: "#171717",
-          foreground: "#ffffff",
+          dark: "#ededed",
         },
-        secondary: {
-          DEFAULT: "#f5f5f5",
-          foreground: "#171717",
+        body: {
+          DEFAULT: "#4d4d4d",
+          dark: "#a1a1a1",
         },
-        muted: {
-          DEFAULT: "#f5f5f5",
-          foreground: "#737373",
+        mute: {
+          DEFAULT: "#8f8f8f",
+          dark: "#737373",
         },
-        accent: {
-          DEFAULT: "#f5f5f5",
-          foreground: "#171717",
+        hairline: {
+          DEFAULT: "#ebebeb",
+          soft: "#f2f2f2",
+          dark: "#262626",
         },
-        destructive: {
-          DEFAULT: "#ee0000",
-          foreground: "#ffffff",
+        canvas: {
+          DEFAULT: "#fafafa",
+          elevated: "#ffffff",
+          dark: "#000000",
+          "elevated-dark": "#0a0a0a",
         },
-        card: {
-          DEFAULT: "#ffffff",
-          foreground: "#171717",
+        link: {
+          DEFAULT: "#0070f3",
+          deep: "#0761d1",
+          soft: "#d3e5ff",
         },
       },
       borderRadius: {
