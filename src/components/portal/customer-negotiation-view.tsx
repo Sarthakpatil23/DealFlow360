@@ -13,7 +13,10 @@ import {
   Calendar,
   Building,
   ArrowRight,
+  ArrowLeft,
   Loader2,
+  Truck,
+  Package,
   ShieldAlert,
 } from "lucide-react";
 import { submitNegotiationRequestAction } from "@/app/actions/negotiation-actions";
@@ -38,6 +41,22 @@ export interface PortalCommentItem {
   createdAt: string;
 }
 
+export interface PortalFulfillmentLine {
+  warehouseName: string;
+  units: number;
+  isBackordered: boolean;
+  shippedAt: string | null;
+  status: string;
+}
+
+export interface PortalFulfillmentData {
+  status: string;
+  totalUnitsOrdered: number;
+  totalUnitsShipped: number;
+  deliveryStatus: "FULLY_DELIVERED" | "PARTIALLY_SHIPPED" | "IN_FULFILLMENT" | "PENDING";
+  lines: PortalFulfillmentLine[];
+}
+
 export interface PortalQuotationData {
   id: string;
   displayCode: string;
@@ -50,6 +69,7 @@ export interface PortalQuotationData {
   totalNet: number;
   orderLines: PortalOrderLine[];
   comments: PortalCommentItem[];
+  fulfillment?: PortalFulfillmentData | null;
 }
 
 interface Props {
@@ -69,7 +89,6 @@ export function CustomerNegotiationView({ initialData }: Props) {
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
   const isConfirmed = data.stage === "CONFIRMED";
-  const isPendingApproval = data.stage === "PENDING_APPROVAL";
 
   // Handle Submit Request
   async function handleSubmitRequest() {
@@ -107,7 +126,7 @@ export function CustomerNegotiationView({ initialData }: Props) {
     }
   }
 
-  // Handle Confirm Quotation (Step 28: Auto re-approval check)
+  // Handle Confirm Quotation
   async function handleConfirmQuotation() {
     setLoading(true);
     setFeedback(null);
@@ -140,40 +159,44 @@ export function CustomerNegotiationView({ initialData }: Props) {
     }
   }
 
+  const fulfillment = data.fulfillment;
+  const fulfillmentPercent =
+    fulfillment && fulfillment.totalUnitsOrdered > 0
+      ? Math.round((fulfillment.totalUnitsShipped / fulfillment.totalUnitsOrdered) * 100)
+      : isConfirmed
+      ? 100
+      : 0;
+
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-16">
-      {/* Portal Top Mini Navigation */}
-      <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
-        <div className="flex items-center gap-4 text-xs font-semibold">
-          <span className="text-neutral-900 dark:text-neutral-100 border-b-2 border-neutral-900 dark:border-white pb-2">
-            My Quotation ({data.displayCode})
-          </span>
-          <span className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 pb-2 cursor-pointer">
-            Messages ({data.comments.length})
-          </span>
-          <span className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 pb-2 cursor-pointer">
-            Profile & Billing
-          </span>
-        </div>
+    <div className="space-y-6 max-w-6xl mx-auto pb-16 font-sans">
+      {/* Top Header & Breadcrumb */}
+      <div className="flex items-center justify-between border-b border-border/80 pb-4">
+        <Link
+          href="/portal"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors group"
+        >
+          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+          Back to Portal Dashboard
+        </Link>
 
         <div className="flex items-center gap-2">
           {data.stage === "CONFIRMED" && (
-            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
               <CheckCircle2 className="w-3.5 h-3.5" /> Order Confirmed
             </span>
           )}
           {data.stage === "NEGOTIATION" && (
-            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20">
               <MessageSquare className="w-3.5 h-3.5" /> Under Negotiation
             </span>
           )}
           {data.stage === "PENDING_APPROVAL" && (
-            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
               <Clock className="w-3.5 h-3.5" /> Re-approval In Progress
             </span>
           )}
           {data.stage === "APPROVED" && (
-            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20">
               <CheckCircle2 className="w-3.5 h-3.5" /> Approved — Ready to Confirm
             </span>
           )}
@@ -181,12 +204,14 @@ export function CustomerNegotiationView({ initialData }: Props) {
       </div>
 
       {/* Screen Title & Welcome */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-          Screen 11 — Customer Portal Negotiation ({data.displayCode})
+      <div className="space-y-1">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          {isConfirmed ? "Confirmed Order & Delivery Status" : "Quotation Proposal"} ({data.displayCode})
         </h1>
-        <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-          Review your personalized proposal. You may comment on specific lines, suggest a counter-discount, or confirm the quote as final.
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          {isConfirmed
+            ? "Your order has been officially confirmed and scheduled with regional distribution centers. Live delivery tracking and dispatch allocations are detailed below."
+            : "Review your customized pricing proposal. You may suggest line-level counter discounts, leave notes for your rep, or accept terms to confirm this order."}
         </p>
       </div>
 
@@ -195,79 +220,175 @@ export function CustomerNegotiationView({ initialData }: Props) {
         <div
           className={`p-4 rounded-xl text-xs font-medium ${
             feedback.type === "success"
-              ? "bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
               : feedback.type === "info"
-              ? "bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800"
-              : "bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800"
+              ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+              : "bg-destructive/10 text-destructive border border-destructive/20"
           }`}
         >
           {feedback.text}
         </div>
       )}
 
-      {/* Canonical Spec Banner: Auto re-approval rule */}
-      <div className="bg-purple-50 dark:bg-purple-950/25 border border-purple-200 dark:border-purple-800/60 rounded-xl p-4 flex items-start gap-3">
-        <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
-        <div className="text-xs text-purple-900 dark:text-purple-200 space-y-0.5">
-          <span className="font-bold block">Negotiation & Re-Approval Rule (project.md Screen 11):</span>
-          <p>
-            &quot;If final terms exceed thresholds, the quote automatically re-enters approval (Screen 6).&quot;
-            When you confirm a quotation with counter-discounts above the ceiling, our system automatically routes it to management for re-approval before finalizing your order.
-          </p>
+      {/* DELIVERY & FULFILLMENT STATUS CARD (When Confirmed or has Fulfillment data) */}
+      {isConfirmed && fulfillment && (
+        <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
+            <div className="space-y-1">
+              <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+                <Truck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                Warehouse Fulfillment & Dispatch Status
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Inventory allocation and delivery fulfillment from regional warehouses.
+              </p>
+            </div>
+
+            <div>
+              {fulfillment.deliveryStatus === "FULLY_DELIVERED" && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Fully Delivered
+                </span>
+              )}
+              {fulfillment.deliveryStatus === "PARTIALLY_SHIPPED" && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
+                  <Truck className="w-3.5 h-3.5" /> Partially Shipped / Dispatched
+                </span>
+              )}
+              {fulfillment.deliveryStatus === "IN_FULFILLMENT" && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                  <Clock className="w-3.5 h-3.5" /> Allocating Warehouse Stock
+                </span>
+              )}
+              {fulfillment.deliveryStatus === "PENDING" && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-muted text-muted-foreground border border-border">
+                  <Clock className="w-3.5 h-3.5" /> Order Confirmed
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Fulfillment Progress & Warehouse Pills */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            {/* Metric progress */}
+            <div className="space-y-2 p-4 rounded-xl bg-muted/30 border border-border/60">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-foreground">Units Received / Shipped:</span>
+                <span className="font-mono font-bold text-foreground">
+                  {fulfillment.totalUnitsShipped} / {fulfillment.totalUnitsOrdered} units ({fulfillmentPercent}%)
+                </span>
+              </div>
+              <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(100, fulfillmentPercent)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Warehouse dispatches */}
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                Regional Logistics Allocations:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {fulfillment.lines.length === 0 ? (
+                  <span className="text-xs text-muted-foreground italic">
+                    Allocating inventory from regional depots...
+                  </span>
+                ) : (
+                  fulfillment.lines.map((line, idx) => (
+                    <div
+                      key={idx}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/40 text-xs text-foreground font-medium"
+                    >
+                      <Truck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span className="font-semibold">{line.warehouseName}:</span>
+                      <span>{line.units} units</span>
+                      <span
+                        className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                          line.shippedAt
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                            : line.isBackordered
+                            ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {line.status}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Auto re-approval rule banner */}
+      {!isConfirmed && (
+        <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-4 flex items-start gap-3">
+          <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+          <div className="text-xs text-purple-950 dark:text-purple-200 space-y-0.5">
+            <span className="font-bold block">Negotiation & Re-Approval Policy:</span>
+            <p>
+              When counter-discount requests exceed standard pricing tier limits, the proposal automatically re-enters an internal approval workflow before order confirmation.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Line-Level Comment & Counter Discount Table */}
-      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden shadow-xs">
-        <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-            Quotation Line Items & Counter-Proposal
+      <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-xs">
+        <div className="p-4 border-b border-border/80 flex items-center justify-between bg-muted/20">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            {isConfirmed ? "Confirmed Order Line Items" : "Proposal Line Items & Counter-Discount"}
           </h2>
-          <span className="text-xs font-mono font-semibold text-neutral-900 dark:text-neutral-100">
-            {data.orderLines.length} line items
+          <span className="text-xs font-mono font-semibold text-foreground">
+            {data.orderLines.length} line item{data.orderLines.length === 1 ? "" : "s"}
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-500 font-semibold">
+            <thead className="border-b border-border bg-muted/30 text-muted-foreground font-semibold">
               <tr>
                 <th className="py-3 px-4">Product Line</th>
                 <th className="py-3 px-4 text-center">Qty</th>
                 <th className="py-3 px-4 text-right">Unit Price</th>
-                <th className="py-3 px-4 text-center">Current Discount</th>
-                <th className="py-3 px-4 text-center">Counter Discount %</th>
-                <th className="py-3 px-4">Customer Comment</th>
+                <th className="py-3 px-4 text-center">Discount %</th>
+                {!isConfirmed && <th className="py-3 px-4 text-center">Counter Discount %</th>}
+                <th className="py-3 px-4">Customer Notes</th>
                 <th className="py-3 px-4 text-right">Line Total</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-200 dark:border-neutral-800">
+            <tbody className="divide-y divide-border/60">
               {data.orderLines.map((line) => (
-                <tr key={line.id} className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/30">
-                  <td className="py-3.5 px-4 font-semibold text-neutral-900 dark:text-neutral-100">
+                <tr key={line.id} className="hover:bg-muted/30 transition-colors">
+                  <td className="py-3.5 px-4 font-semibold text-foreground">
                     <div>{line.productName}</div>
-                    <span className="text-[10px] text-neutral-400 uppercase font-mono">
+                    <span className="text-[10px] text-muted-foreground uppercase font-mono">
                       {line.category}
                     </span>
                   </td>
 
-                  <td className="py-3.5 px-4 text-center font-mono text-neutral-700 dark:text-neutral-300">
+                  <td className="py-3.5 px-4 text-center font-mono font-medium text-foreground">
                     {line.quantity}
                   </td>
 
-                  <td className="py-3.5 px-4 text-right font-mono text-neutral-600 dark:text-neutral-400">
+                  <td className="py-3.5 px-4 text-right font-mono text-muted-foreground">
                     ${line.unitPrice.toFixed(2)}
                   </td>
 
                   <td className="py-3.5 px-4 text-center">
-                    <span className="font-mono font-bold px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200">
+                    <span className="font-mono font-bold px-2 py-0.5 rounded bg-muted text-foreground">
                       {line.discountPercent}%
                     </span>
                   </td>
 
                   {/* Counter Discount % Input */}
-                  <td className="py-3.5 px-4 text-center">
-                    {!isConfirmed ? (
+                  {!isConfirmed && (
+                    <td className="py-3.5 px-4 text-center">
                       <div className="inline-flex items-center justify-center gap-1">
                         <input
                           type="number"
@@ -281,21 +402,19 @@ export function CustomerNegotiationView({ initialData }: Props) {
                               [line.id]: e.target.value === "" ? "" : parseFloat(e.target.value),
                             })
                           }
-                          className="w-14 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 p-1 text-center font-mono font-semibold text-xs focus:ring-1 focus:ring-neutral-400"
+                          className="w-14 rounded-lg border border-border bg-background p-1 text-center font-mono font-semibold text-xs focus:ring-1 focus:ring-foreground"
                         />
-                        <span className="text-neutral-400 font-mono">%</span>
+                        <span className="text-muted-foreground font-mono">%</span>
                       </div>
-                    ) : (
-                      <span className="font-mono text-neutral-400">—</span>
-                    )}
-                  </td>
+                    </td>
+                  )}
 
                   {/* Line Comment Input */}
                   <td className="py-3.5 px-4">
                     {!isConfirmed ? (
                       <input
                         type="text"
-                        placeholder="e.g. Can this be 15% off instead of 10%?"
+                        placeholder="e.g. Requesting 15% discount for bulk volume"
                         value={lineComments[line.id] || ""}
                         onChange={(e) =>
                           setLineComments({
@@ -303,14 +422,14 @@ export function CustomerNegotiationView({ initialData }: Props) {
                             [line.id]: e.target.value,
                           })
                         }
-                        className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 px-2.5 py-1 text-xs focus:ring-1 focus:ring-neutral-400"
+                        className="w-full rounded-lg border border-border bg-background px-2.5 py-1 text-xs focus:ring-1 focus:ring-foreground"
                       />
                     ) : (
-                      <span className="text-neutral-400 italic">Confirmed as final</span>
+                      <span className="text-muted-foreground italic">Confirmed in order</span>
                     )}
                   </td>
 
-                  <td className="py-3.5 px-4 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                  <td className="py-3.5 px-4 text-right font-mono font-bold text-foreground">
                     ${line.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                 </tr>
@@ -320,37 +439,39 @@ export function CustomerNegotiationView({ initialData }: Props) {
         </div>
 
         {/* Global Delivery Date & Financial Summary */}
-        <div className="p-4 bg-neutral-50/60 dark:bg-neutral-950/40 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+        <div className="p-4 bg-muted/20 border-t border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
           <div className="flex items-center gap-3">
-            <Calendar className="w-4 h-4 text-neutral-400" />
-            <label className="font-medium text-neutral-700 dark:text-neutral-300">
-              Requested Delivery Date:
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <label className="font-medium text-foreground">
+              {isConfirmed ? "Delivery Scheduled:" : "Requested Delivery Date:"}
             </label>
             <input
               type="date"
               disabled={isConfirmed}
               value={requestedDate}
               onChange={(e) => setRequestedDate(e.target.value)}
-              className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1 text-xs font-mono"
+              className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-mono"
             />
           </div>
 
           <div className="flex items-center gap-6 font-mono text-right">
             <div>
-              <span className="text-[10px] text-neutral-400 block uppercase">Subtotal</span>
-              <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+              <span className="text-[10px] text-muted-foreground block uppercase">Subtotal</span>
+              <span className="font-semibold text-foreground">
                 ${data.totalGross.toFixed(2)}
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-neutral-400 block uppercase">Discounts</span>
+              <span className="text-[10px] text-muted-foreground block uppercase">Discounts</span>
               <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                 -${data.totalDiscount.toFixed(2)}
               </span>
             </div>
-            <div className="border-l border-neutral-200 dark:border-neutral-800 pl-4">
-              <span className="text-[10px] text-neutral-400 block uppercase">Final Quote Total</span>
-              <span className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+            <div className="border-l border-border pl-4">
+              <span className="text-[10px] text-muted-foreground block uppercase">
+                {isConfirmed ? "Total Order Value" : "Final Proposal Total"}
+              </span>
+              <span className="text-base font-bold text-foreground">
                 ${data.totalNet.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
@@ -360,28 +481,28 @@ export function CustomerNegotiationView({ initialData }: Props) {
 
       {/* Negotiation History & Message Thread */}
       {data.comments.length > 0 && (
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 space-y-3 shadow-xs">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-2">
-            <MessageSquare className="w-3.5 h-3.5" /> Negotiation History
+        <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-3 shadow-xs">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <MessageSquare className="w-3.5 h-3.5" /> Negotiation & Proposal History
           </h3>
 
           <div className="space-y-2.5">
             {data.comments.map((comm) => (
               <div
                 key={comm.id}
-                className="p-3 rounded-lg border border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/30 text-xs space-y-1"
+                className="p-3 rounded-xl border border-border/60 bg-muted/30 text-xs space-y-1"
               >
-                <div className="flex items-center justify-between text-neutral-500">
-                  <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span className="font-semibold text-foreground">
                     {comm.authorName}
                   </span>
                   <span className="text-[11px] font-mono">{comm.createdAt}</span>
                 </div>
-                <p className="text-neutral-700 dark:text-neutral-300">
+                <p className="text-foreground">
                   {comm.commentText}
                 </p>
                 {comm.counterDiscountPercent !== null && comm.counterDiscountPercent !== undefined && (
-                  <span className="inline-block text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                  <span className="inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20">
                     Proposed Counter: {comm.counterDiscountPercent}%
                   </span>
                 )}
@@ -393,12 +514,12 @@ export function CustomerNegotiationView({ initialData }: Props) {
 
       {/* Bottom Action CTAs */}
       {!isConfirmed && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs">
-          <div className="text-xs text-neutral-500">
-            <span className="font-bold text-neutral-800 dark:text-neutral-200 block">
-              Ready to proceed?
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 rounded-2xl border border-border/80 bg-card shadow-xs">
+          <div className="text-xs text-muted-foreground">
+            <span className="font-bold text-foreground block">
+              Accept Proposal or Counter?
             </span>
-            Hit &quot;Confirm Quotation&quot; to finalize this order, or &quot;Submit Request&quot; to message your rep.
+            Click &quot;Confirm Quotation&quot; to finalize this order, or &quot;Submit Counter Request&quot; to send line discount counter-proposals to your rep.
           </div>
 
           <div className="flex items-center gap-3">
@@ -406,20 +527,20 @@ export function CustomerNegotiationView({ initialData }: Props) {
               type="button"
               disabled={loading}
               onClick={handleSubmitRequest}
-              className="px-4 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors flex items-center gap-1.5"
+              className="px-4 py-2.5 rounded-xl border border-border bg-card text-foreground text-xs font-semibold hover:bg-muted transition-colors flex items-center gap-1.5"
             >
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              Submit Request
+              Submit Counter Request
             </button>
 
             <button
               type="button"
               disabled={loading}
               onClick={handleConfirmQuotation}
-              className="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs"
             >
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-              Confirm Quotation
+              Confirm Quotation & Place Order
             </button>
           </div>
         </div>

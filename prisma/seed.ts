@@ -508,7 +508,185 @@ async function main() {
   });
   console.log("💡 Created Upsell / Cross-sell recommendation rules.");
 
-  // 9. Seed the Canonical Q-1042 Quotation (Exactly adhering to spec)
+  // 9. Seed Confirmed Orders & Canonical Quotations for Acme Corp (Gold Tier)
+  const q1038 = await prisma.quotation.create({
+    data: {
+      displayCode: "Q-1038",
+      customerId: acme.id,
+      ownerRepId: repRao.id,
+      stage: QuotationStage.CONFIRMED,
+      blendedRiskLevel: RiskLevel.LOW,
+      currency: "USD",
+      lastActivityAt: new Date(Date.now() - 6 * 86400000),
+      createdAt: new Date(Date.now() - 8 * 86400000),
+      orderLines: {
+        create: [
+          {
+            productId: laptop.id,
+            quantity: 10,
+            unitPrice: 1200.0,
+            discountPercent: 10.0,
+            effectiveLimitPercent: 15.0,
+            isUpsellAdd: false,
+          },
+          {
+            productId: wirelessMouse.id,
+            quantity: 10,
+            unitPrice: 35.0,
+            discountPercent: 0.0,
+            effectiveLimitPercent: 15.0,
+            isUpsellAdd: false,
+          },
+        ],
+      },
+      fulfillment: {
+        create: {
+          status: FulfillmentStatus.FULFILLED,
+          lines: {
+            create: [
+              {
+                warehouseId: mainWarehouse.id,
+                productId: laptop.id,
+                quantityFulfilled: 10,
+                estimatedShipments: 1,
+                estimatedCost: 15.0,
+                isBackordered: false,
+                shippedAt: new Date(Date.now() - 5 * 86400000),
+              },
+              {
+                warehouseId: westHub.id,
+                productId: wirelessMouse.id,
+                quantityFulfilled: 10,
+                estimatedShipments: 1,
+                estimatedCost: 6.0,
+                isBackordered: false,
+                shippedAt: new Date(Date.now() - 4 * 86400000),
+              },
+            ],
+          },
+        },
+      },
+      invoices: {
+        create: {
+          displayCode: "INV-2026-1038",
+          customerId: acme.id,
+          type: InvoiceType.ONE_TIME,
+          amount: 11150.0,
+          status: InvoiceStatus.PAID,
+          dueDate: new Date(Date.now() - 2 * 86400000),
+          paidAt: new Date(Date.now() - 3 * 86400000),
+        },
+      },
+    },
+  });
+
+  const q1040 = await prisma.quotation.create({
+    data: {
+      displayCode: "Q-1040",
+      customerId: acme.id,
+      ownerRepId: repRao.id,
+      stage: QuotationStage.CONFIRMED,
+      blendedRiskLevel: RiskLevel.MEDIUM,
+      currency: "USD",
+      lastActivityAt: new Date(Date.now() - 2 * 86400000),
+      createdAt: new Date(Date.now() - 3 * 86400000),
+      orderLines: {
+        create: [
+          {
+            productId: laptop.id,
+            quantity: 24,
+            unitPrice: 1200.0,
+            discountPercent: 12.0,
+            effectiveLimitPercent: 15.0,
+            isUpsellAdd: false,
+          },
+        ],
+      },
+      fulfillment: {
+        create: {
+          status: FulfillmentStatus.SPLIT_PENDING,
+          lines: {
+            create: [
+              {
+                warehouseId: mainWarehouse.id,
+                productId: laptop.id,
+                quantityFulfilled: 18,
+                estimatedShipments: 1,
+                estimatedCost: 18.0,
+                isBackordered: false,
+                shippedAt: new Date(Date.now() - 1 * 86400000),
+              },
+              {
+                warehouseId: eastDepot.id,
+                productId: laptop.id,
+                quantityFulfilled: 6,
+                estimatedShipments: 1,
+                estimatedCost: 9.0,
+                isBackordered: true,
+                shippedAt: null,
+              },
+            ],
+          },
+        },
+      },
+      invoices: {
+        create: {
+          displayCode: "INV-2026-1040",
+          customerId: acme.id,
+          type: InvoiceType.ONE_TIME,
+          amount: 25344.0,
+          status: InvoiceStatus.UNPAID,
+          dueDate: new Date(Date.now() + 12 * 86400000),
+          paidAt: null,
+        },
+      },
+    },
+  });
+
+  const q1041 = await prisma.quotation.create({
+    data: {
+      displayCode: "Q-1041",
+      customerId: acme.id,
+      ownerRepId: repRao.id,
+      stage: QuotationStage.NEGOTIATION,
+      blendedRiskLevel: RiskLevel.LOW,
+      currency: "USD",
+      lastActivityAt: new Date(Date.now() - 1 * 86400000),
+      createdAt: new Date(Date.now() - 2 * 86400000),
+      orderLines: {
+        create: [
+          {
+            productId: ultraBook16.id,
+            quantity: 5,
+            unitPrice: 1800.0,
+            discountPercent: 5.0,
+            effectiveLimitPercent: 15.0,
+            isUpsellAdd: false,
+          },
+          {
+            productId: dockingStation.id,
+            quantity: 5,
+            unitPrice: 180.0,
+            discountPercent: 0.0,
+            effectiveLimitPercent: 15.0,
+            isUpsellAdd: false,
+          },
+        ],
+      },
+      negotiationComments: {
+        create: [
+          {
+            orderLineId: undefined,
+            commentText: "Could we increase the UltraBook discount to 12% for this 5-unit bundle?",
+            counterDiscountPercent: 12.0,
+            createdAt: new Date(Date.now() - 1 * 86400000),
+          },
+        ],
+      },
+    },
+  });
+
+  // Canonical Q-1042 Quotation (Pending Approval, adhering strictly to spec)
   const q1042 = await prisma.quotation.create({
     data: {
       displayCode: "Q-1042",
@@ -590,32 +768,6 @@ async function main() {
           },
         ],
       },
-      fulfillment: {
-        create: {
-          status: FulfillmentStatus.SPLIT_PENDING,
-          lines: {
-            create: [
-              {
-                warehouseId: mainWarehouse.id,
-                productId: laptop.id,
-                quantityFulfilled: 18,
-                estimatedShipments: 1,
-                estimatedCost: 18.0,
-                isBackordered: false,
-                shippedAt: new Date("2026-08-23T09:00:00Z"),
-              },
-              {
-                warehouseId: eastDepot.id,
-                productId: laptop.id,
-                quantityFulfilled: 6,
-                estimatedShipments: 1,
-                estimatedCost: 9.0,
-                isBackordered: false,
-              },
-            ],
-          },
-        },
-      },
     },
   });
 
@@ -631,12 +783,12 @@ async function main() {
     QuotationStage.CONFIRMED,
   ];
 
-  let quoteCounter = 1043;
+  let quoteCounter = 1045;
 
   for (let i = 0; i < 75; i++) {
     const cust = allCustomers[i % allCustomers.length];
     const rep = allReps[i % allReps.length];
-    const stage = stagesList[i % stagesList.length];
+    const stage = stagesList[(i * 7 + 2) % stagesList.length];
     const displayCode = `Q-${quoteCounter++}`;
 
     // Select 2 to 3 distinct products for this quote
@@ -746,12 +898,13 @@ async function main() {
       });
     }
 
-    // Add fulfillment record if CONFIRMED
+    // Add fulfillment record and invoice if CONFIRMED
     if (stage === QuotationStage.CONFIRMED) {
+      const isFulfilled = i % 2 === 0;
       await prisma.fulfillment.create({
         data: {
           quotationId: q.id,
-          status: (i % 2 === 0) ? FulfillmentStatus.FULFILLED : FulfillmentStatus.SPLIT_PENDING,
+          status: isFulfilled ? FulfillmentStatus.FULFILLED : FulfillmentStatus.SPLIT_PENDING,
           lines: {
             create: [
               {
@@ -759,12 +912,34 @@ async function main() {
                 productId: p1.id,
                 quantityFulfilled: 2,
                 estimatedShipments: 1,
-                estimatedCost: 5.0,
+                estimatedCost: 8.5,
                 isBackordered: false,
-                shippedAt: new Date(),
+                shippedAt: new Date(Date.now() - 3 * 86400000),
+              },
+              {
+                warehouseId: allWarehouses[(i + 1) % allWarehouses.length].id,
+                productId: p2.id,
+                quantityFulfilled: 1,
+                estimatedShipments: 1,
+                estimatedCost: 4.0,
+                isBackordered: !isFulfilled,
+                shippedAt: isFulfilled ? new Date(Date.now() - 1 * 86400000) : null,
               },
             ],
           },
+        },
+      });
+
+      await prisma.invoice.create({
+        data: {
+          displayCode: `INV-2026-${displayCode.replace("Q-", "")}`,
+          customerId: cust.id,
+          quotationId: q.id,
+          type: InvoiceType.ONE_TIME,
+          amount: 2200.0 + (i * 95),
+          status: isFulfilled ? InvoiceStatus.PAID : InvoiceStatus.UNPAID,
+          dueDate: new Date(Date.now() + 10 * 86400000),
+          paidAt: isFulfilled ? new Date(Date.now() - 2 * 86400000) : null,
         },
       });
     }
