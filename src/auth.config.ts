@@ -54,6 +54,11 @@ export const authConfig = {
         return true;
       }
 
+      // Developer test harnesses
+      if (pathname.startsWith("/test")) {
+        return true;
+      }
+
       // If accessing protected routes without login
       if (!isLoggedIn) {
         let callbackUrl = pathname;
