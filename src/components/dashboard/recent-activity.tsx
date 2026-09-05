@@ -15,15 +15,15 @@ export function RecentActivity({ activities }: RecentActivityProps) {
         Recent Activity
       </h2>
 
-      <ul className="space-y-2 text-sm text-[#171717] list-none p-0 m-0">
+      <ul className="space-y-2 text-sm text-[#171717] dark:text-[#ededed] list-none p-0 m-0">
         {activities.map((item) => (
           <li key={item.id} className="flex items-center gap-2">
-            <span className="text-[#171717] select-none font-normal">
+            <span className="text-[#171717] dark:text-[#ededed] select-none font-normal" aria-hidden="true">
               –
             </span>
             <Link
               href={item.href}
-              className="text-[#171717] hover:text-[#0070f3] transition-colors focus:outline-none focus:underline"
+              className="text-[#171717] dark:text-[#ededed] hover:text-[#0070f3] dark:hover:text-[#0070f3] transition-colors focus:outline-none focus:underline"
             >
               {item.text}
             </Link>

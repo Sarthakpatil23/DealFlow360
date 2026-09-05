@@ -15,7 +15,7 @@ export default async function SalesDashboardPage() {
   const { summaryCards, recentActivities } = await getDashboardData();
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-[#171717] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-[#171717] dark:text-[#ededed] flex flex-col font-sans transition-colors duration-150">
       {/* Top Navigation */}
       <TopNav />
 
@@ -23,10 +23,10 @@ export default async function SalesDashboardPage() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10 space-y-8">
         {/* Header Section */}
         <header className="space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#171717]">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#171717] dark:text-[#ededed]">
             Sales Dashboard / Home
           </h1>
-          <p className="text-sm text-[#737373]">
+          <p className="text-sm text-[#737373] dark:text-[#a1a1a1]">
             Central hub, links out to every module below
           </p>
         </header>
@@ -60,7 +60,7 @@ export default async function SalesDashboardPage() {
 
           <Link
             href="/approvals"
-            className="inline-flex items-center justify-center bg-white border border-[#ebebeb] text-[#171717] hover:bg-neutral-50 hover:border-neutral-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#171717] focus:ring-offset-2"
+            className="inline-flex items-center justify-center bg-white dark:bg-[#0a0a0a] border border-[#ebebeb] dark:border-[#262626] text-[#171717] dark:text-[#ededed] hover:bg-neutral-50 dark:hover:bg-[#171717] hover:border-neutral-300 dark:hover:border-neutral-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#171717] dark:focus:ring-white focus:ring-offset-2 dark:focus:ring-offset-black"
           >
             View Approvals
           </Link>
