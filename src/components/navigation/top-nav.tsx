@@ -25,7 +25,7 @@ export function TopNav() {
   const pathname = usePathname();
 
   return (
-    <header className="w-full bg-[#fafafa] dark:bg-[#000000] border-b border-[#ebebeb] dark:border-[#262626] sticky top-0 z-40 transition-colors duration-150">
+    <header className="w-full bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-border/80 sticky top-0 z-40 transition-colors duration-150 shadow-2xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Brand Wordmark */}
         <div className="flex items-center gap-3 shrink-0">
@@ -41,7 +41,7 @@ export function TopNav() {
         </div>
 
         {/* Navigation Items & Theme Toggle */}
-        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-2">
+        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar h-full">
           <nav
             className="flex items-center gap-1.5"
             aria-label="Internal Navigation"

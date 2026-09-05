@@ -26,10 +26,10 @@ import {
   Sparkles,
   Package,
   Layers,
-  TrendingUp,
-  Percent,
   Check,
-  RotateCcw
+  ChevronDown,
+  Info,
+  PackagePlus
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -333,33 +333,33 @@ export function QuotationBuilder({
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* Top Header & Breadcrumbs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-5 pt-1">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
             <Link
               href="/quotations"
-              className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+              className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Quotations Pipeline
             </Link>
-            <span>/</span>
-            <span className="text-foreground">{isNew ? "New Deal" : displayCode}</span>
+            <span className="text-muted-foreground/50">/</span>
+            <span className="text-foreground font-semibold">{isNew ? "New Deal" : displayCode}</span>
           </div>
 
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans">
               {isNew ? "Create Quotation" : `Quotation ${displayCode}`}
             </h1>
-            <span className="font-mono text-xs px-2.5 py-1 rounded-md bg-muted text-foreground border border-border font-semibold">
+            <span className="font-mono text-xs px-2.5 py-1 rounded-md bg-muted text-foreground border border-border font-semibold shadow-2xs">
               {displayCode}
             </span>
             <span
-              className={`text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full uppercase border ${
+              className={`text-xs font-mono font-semibold px-2.5 py-1 rounded-full uppercase border shadow-2xs ${
                 stage === "APPROVED"
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
                   : stage === "PENDING_APPROVAL"
-                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
                   : "bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-border"
               }`}
             >
@@ -368,13 +368,13 @@ export function QuotationBuilder({
           </div>
         </div>
 
-        {/* Top Quick Actions */}
+        {/* Top Actions */}
         <div className="flex items-center gap-2.5">
           <button
             type="button"
             disabled={isSaving || isSubmitting}
             onClick={handleSaveDraft}
-            className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-xs font-medium text-foreground hover:bg-muted/70 transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-xs font-medium text-foreground hover:bg-muted/70 transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
           >
             {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5 text-muted-foreground" />}
             Save Draft
@@ -384,7 +384,11 @@ export function QuotationBuilder({
             type="button"
             disabled={isSaving || isSubmitting || lines.length === 0}
             onClick={handleSubmitApproval}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#0070f3] hover:bg-[#0761d1] text-white px-4 py-2 text-xs font-semibold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all shadow-xs ${
+              lines.length === 0
+                ? "bg-muted text-muted-foreground border border-border cursor-not-allowed"
+                : "bg-[#0070f3] hover:bg-[#0761d1] text-white cursor-pointer shadow-sm hover:shadow"
+            }`}
           >
             {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             Submit for Approval
@@ -407,10 +411,10 @@ export function QuotationBuilder({
         </div>
       )}
 
-      {/* Parameters Header Cards (Customer, Price List, Governance Preview) */}
+      {/* 3 Parameter Cards with Harmonious Heights & Unified Borders */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Customer Selector Card */}
-        <div className="rounded-2xl border border-border bg-card p-4.5 space-y-2.5 shadow-2xs transition-colors">
+        {/* Card 1: Target Customer */}
+        <div className="rounded-2xl border border-border/80 bg-card p-4.5 flex flex-col justify-between shadow-2xs transition-colors min-h-[148px]">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5 text-primary" />
@@ -429,63 +433,69 @@ export function QuotationBuilder({
             </span>
           </div>
 
-          <div className="relative">
+          <div className="relative my-1">
             {availableCustomers.length > 0 ? (
-              <select
-                value={customerId}
-                onChange={(e) => handleCustomerSelect(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs transition-colors cursor-pointer"
-              >
-                {availableCustomers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} — {c.tier} Tier ({c.preferredCurrency || "USD"})
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={customerId}
+                  onChange={(e) => handleCustomerSelect(e.target.value)}
+                  className="w-full h-10 appearance-none rounded-xl border border-border/80 bg-background hover:bg-muted/30 px-3.5 pr-8 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs transition-colors cursor-pointer"
+                >
+                  {availableCustomers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} — {c.tier} Tier ({c.preferredCurrency || "USD"})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="h-4 w-4 text-muted-foreground absolute right-3 top-3 pointer-events-none" />
+              </div>
             ) : (
               <input
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                className="w-full h-10 rounded-xl border border-border/80 bg-background px-3.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
               />
             )}
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5 border-t border-border/40">
             <span>Currency: <strong className="text-foreground">USD ($)</strong></span>
-            <span>Ceiling: <strong className="text-foreground">{tierCeilingPercent}%</strong></span>
+            <span>Ceiling: <strong className="text-foreground">{tierCeilingPercent}% Max</strong></span>
           </div>
         </div>
 
-        {/* Price List Card */}
-        <div className="rounded-2xl border border-border bg-card p-4.5 space-y-2.5 shadow-2xs transition-colors">
+        {/* Card 2: Applied Price List */}
+        <div className="rounded-2xl border border-border/80 bg-card p-4.5 flex flex-col justify-between shadow-2xs transition-colors min-h-[148px]">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               <Tag className="h-3.5 w-3.5 text-primary" />
               Applied Price List
             </span>
-            <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
+            <span className="text-[10px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border font-medium">
               Auto-Selected
             </span>
           </div>
 
-          <div>
-            <input
-              type="text"
-              value={priceListName}
-              onChange={(e) => setPriceListName(e.target.value)}
-              className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs transition-colors"
-            />
+          <div className="my-1">
+            <div className="w-full h-10 rounded-xl border border-border/80 bg-background px-3.5 flex items-center justify-between shadow-2xs">
+              <span className="text-xs font-medium text-foreground truncate">
+                {priceListName}
+              </span>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0 border border-border">
+                {customerTier === "GOLD" ? "-10% Base" : "Standard"}
+              </span>
+            </div>
           </div>
 
-          <p className="text-[11px] text-muted-foreground pt-0.5">
-            Base prices include {customerTier === "GOLD" ? "10% Gold tier discount" : "standard baseline pricing"}.
-          </p>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5 border-t border-border/40">
+            <span>Currency: <strong className="text-foreground">USD</strong></span>
+            <span>Rule: <strong className="text-foreground">{customerTier === "GOLD" ? "Gold 10% Break" : "Standard"}</strong></span>
+          </div>
         </div>
 
-        {/* Compliance & Risk Forecast Card */}
-        <div className="rounded-2xl border border-border bg-card p-4.5 space-y-2.5 shadow-2xs transition-colors">
+        {/* Card 3: Approval Forecast */}
+        <div className="rounded-2xl border border-border/80 bg-card p-4.5 flex flex-col justify-between shadow-2xs transition-colors min-h-[148px]">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               {financialTotals.anyOverLimit ? (
@@ -506,54 +516,53 @@ export function QuotationBuilder({
             </span>
           </div>
 
-          <div className="p-2 rounded-xl bg-muted/30 border border-border/60">
-            {financialTotals.anyOverLimit ? (
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-foreground font-medium">
-                  One or more items exceed discount limits (max overage +{financialTotals.maxOverage.toFixed(1)}pt).
-                  <span className="block text-[11px] text-muted-foreground font-normal mt-0.5">
-                    Will route to Sales Manager upon submission.
-                  </span>
-                </div>
+          <div className="my-1">
+            <div
+              className={`w-full h-10 rounded-xl border px-3.5 flex items-center justify-between shadow-2xs ${
+                financialTotals.anyOverLimit
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+                  : "border-emerald-500/20 bg-emerald-500/5 text-emerald-800 dark:text-emerald-300"
+              }`}
+            >
+              <div className="flex items-center gap-2 truncate">
+                {financialTotals.anyOverLimit ? (
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                )}
+                <span className="text-xs font-semibold truncate">
+                  {financialTotals.anyOverLimit
+                    ? `Over limit (+${financialTotals.maxOverage.toFixed(1)}pt) · Requires Manager`
+                    : "Within limits · 1-Click Auto-Approve"}
+                </span>
               </div>
-            ) : (
-              <div className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-foreground font-medium">
-                  All items comply with tier and category ceilings.
-                  <span className="block text-[11px] text-muted-foreground font-normal mt-0.5">
-                    Eligible for immediate auto-approval.
-                  </span>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5 border-t border-border/40">
             <span>Lines Checked: <strong className="text-foreground">{lines.length}</strong></span>
             <span>Avg Discount: <strong className="text-foreground">{financialTotals.avgDiscountPercent.toFixed(1)}%</strong></span>
           </div>
         </div>
       </div>
 
-      {/* Line Items Card Table */}
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs transition-colors">
+      {/* Line Items Container */}
+      <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-xs transition-colors">
         {/* Table Header Controls */}
         <div className="p-4 border-b border-border bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
               <Layers className="h-4 w-4 text-primary" />
               Quotation Line Items
             </h2>
-            <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
+            <span className="text-xs font-mono font-medium px-2.5 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
               {lines.length} {lines.length === 1 ? "item" : "items"}
             </span>
           </div>
 
-          <div className="text-xs text-muted-foreground flex items-center gap-2">
-            <span>Real-time limit validation:</span>
-            <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+          <div className="text-xs text-muted-foreground flex items-center gap-2 font-medium">
+            <span>Dual-Ceiling Validation:</span>
+            <span className="inline-flex items-center gap-1 font-semibold text-foreground px-2 py-0.5 rounded bg-muted border border-border">
               Stricter ceiling wins
             </span>
           </div>
@@ -561,31 +570,39 @@ export function QuotationBuilder({
 
         {/* Lines Table or Empty State */}
         {lines.length === 0 ? (
-          <div className="py-14 px-4 text-center flex flex-col items-center justify-center space-y-4">
-            <div className="h-12 w-12 rounded-2xl bg-muted/60 border border-border flex items-center justify-center text-muted-foreground">
-              <Package className="h-6 w-6" />
+          <div className="py-16 px-4 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="h-14 w-14 rounded-2xl bg-muted/60 border border-border flex items-center justify-center text-muted-foreground shadow-2xs">
+              <PackagePlus className="h-7 w-7 text-primary/80" />
             </div>
             <div className="max-w-md space-y-1">
-              <h3 className="text-sm font-semibold text-foreground">No items added to this quotation yet</h3>
-              <p className="text-xs text-muted-foreground">
-                Select a product from the catalog below, or click any of the recommended upsell cards to populate this quotation.
+              <h3 className="text-sm font-bold text-foreground">Your quotation is currently empty</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Add products from the catalog toolbar below, or click any of the recommended starter items to begin building this quote.
               </p>
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => handleAddSuggestion("Laptop Pro 14", 1200, false)}
-                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/80 border border-border text-foreground transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-xl bg-background hover:bg-muted border border-border text-foreground transition-all shadow-2xs cursor-pointer"
               >
-                <Plus className="h-3 w-3" />
+                <Plus className="h-3.5 w-3.5 text-primary" />
                 + Laptop Pro 14 ($1,200)
               </button>
               <button
                 type="button"
-                onClick={() => handleAddSuggestion("Wireless Mouse", 35, true)}
-                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/80 border border-border text-foreground transition-colors cursor-pointer"
+                onClick={() => handleAddSuggestion("Onsite Setup Service", 450, false)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-xl bg-background hover:bg-muted border border-border text-foreground transition-all shadow-2xs cursor-pointer"
               >
-                <Plus className="h-3 w-3" />
+                <Plus className="h-3.5 w-3.5 text-primary" />
+                + Onsite Setup Service ($450)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddSuggestion("Wireless Mouse", 35, true)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-xl bg-background hover:bg-muted border border-border text-foreground transition-all shadow-2xs cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5 text-primary" />
                 + Wireless Mouse ($35)
               </button>
             </div>
@@ -595,14 +612,14 @@ export function QuotationBuilder({
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-muted/40 text-xs font-semibold text-muted-foreground">
                 <tr>
-                  <th className="py-3 px-4 text-foreground">Product</th>
-                  <th className="py-3 px-3 text-right text-foreground w-28">Unit Price</th>
-                  <th className="py-3 px-3 text-center text-foreground w-32">Qty</th>
-                  <th className="py-3 px-3 text-center text-foreground w-28">Discount %</th>
-                  <th className="py-3 px-3 text-center text-foreground w-24">Limit %</th>
-                  <th className="py-3 px-3 text-center text-foreground w-28">Status</th>
-                  <th className="py-3 px-4 text-right text-foreground w-32">Line Net</th>
-                  <th className="py-3 px-3 text-center w-12"></th>
+                  <th className="py-3.5 px-4 text-foreground">Product & Category</th>
+                  <th className="py-3.5 px-3 text-right text-foreground w-28">Unit Price</th>
+                  <th className="py-3.5 px-3 text-center text-foreground w-32">Qty</th>
+                  <th className="py-3.5 px-3 text-center text-foreground w-28">Discount %</th>
+                  <th className="py-3.5 px-3 text-center text-foreground w-24">Limit %</th>
+                  <th className="py-3.5 px-3 text-center text-foreground w-32">Status</th>
+                  <th className="py-3.5 px-4 text-right text-foreground w-32">Line Net</th>
+                  <th className="py-3.5 px-3 text-center w-12"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60 text-xs">
@@ -645,7 +662,7 @@ export function QuotationBuilder({
 
                       {/* Quantity Stepper */}
                       <td className="py-3 px-3 text-center">
-                        <div className="inline-flex items-center rounded-lg border border-input bg-background shadow-2xs overflow-hidden">
+                        <div className="inline-flex items-center rounded-lg border border-border/80 bg-background shadow-2xs overflow-hidden">
                           <button
                             type="button"
                             onClick={() => handleQuantityChange(idx, line.quantity - 1)}
@@ -682,7 +699,7 @@ export function QuotationBuilder({
                             className={`w-14 rounded-lg border py-1 px-1.5 text-center text-xs font-mono font-semibold focus:outline-none focus:ring-1 shadow-2xs transition-all ${
                               isOver
                                 ? "border-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-300 focus:ring-amber-500"
-                                : "border-input bg-background text-foreground focus:ring-primary"
+                                : "border-border/80 bg-background text-foreground focus:ring-primary"
                             }`}
                           />
                           <span className="text-xs font-mono text-muted-foreground">%</span>
@@ -697,13 +714,13 @@ export function QuotationBuilder({
                       {/* Status Pill Badge */}
                       <td className="py-3.5 px-3 text-center">
                         {isOver ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                            <AlertTriangle className="h-3 w-3" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold font-mono bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-2xs">
+                            <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                             OVER (+{overPoints}pt)
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                            <Check className="h-3 w-3" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs">
+                            <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                             OK
                           </span>
                         )}
@@ -733,7 +750,7 @@ export function QuotationBuilder({
           </div>
         )}
 
-        {/* Product Catalog Inline Add Bar */}
+        {/* Product Catalog Command Bar */}
         <div className="p-4 bg-muted/20 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
             {/* Category Filter Pills */}
@@ -754,51 +771,42 @@ export function QuotationBuilder({
               ))}
             </div>
 
-            {/* Product Dropdown */}
-            <select
-              value={selectedProductId}
-              onChange={(e) => setSelectedProductId(e.target.value)}
-              className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary w-full sm:w-64 cursor-pointer shadow-2xs"
-            >
-              <option value="">-- Select product to add --</option>
-              {filteredProducts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} (${p.basePrice.toLocaleString()}) [{p.category}]
-                </option>
-              ))}
-            </select>
+            {/* Product Dropdown with Custom Styling */}
+            <div className="relative">
+              <select
+                value={selectedProductId}
+                onChange={(e) => setSelectedProductId(e.target.value)}
+                className="h-10 rounded-xl border border-border/80 bg-background px-3.5 pr-8 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary w-full sm:w-64 cursor-pointer shadow-2xs"
+              >
+                <option value="">-- Choose catalog product --</option>
+                {filteredProducts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} (${p.basePrice.toLocaleString()}) [{p.category}]
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {/* Add Button */}
             <button
               type="button"
               disabled={!selectedProductId}
               onClick={() => handleAddProduct(selectedProductId)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-foreground text-background px-4 py-2 text-xs font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity shrink-0 cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1.5 h-10 rounded-xl bg-foreground text-background px-4 text-xs font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity shrink-0 cursor-pointer shadow-2xs"
             >
               <Plus className="h-3.5 w-3.5" />
-              Add to Quote
+              Add Item
             </button>
           </div>
 
-          <div className="text-xs text-muted-foreground text-right w-full md:w-auto">
-            Showing <strong className="text-foreground">{filteredProducts.length}</strong> catalog products
+          <div className="text-xs text-muted-foreground text-right w-full md:w-auto font-medium">
+            Available Catalog: <strong className="text-foreground font-semibold">{filteredProducts.length}</strong> items
           </div>
-        </div>
-      </div>
-
-      {/* Governance Banner Callout */}
-      <div className="rounded-2xl border border-amber-500/30 dark:border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20 p-4 text-xs sm:text-sm text-amber-950 dark:text-amber-200 font-medium flex items-center gap-3">
-        <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
-        <div className="space-y-0.5">
-          <p className="font-semibold text-xs sm:text-sm">Multi-Tier Discount Governance Active</p>
-          <p className="text-[11px] sm:text-xs text-amber-800/80 dark:text-amber-300/80">
-            For each line, the system applies the stricter ceiling between Customer Tier ({customerTier} = {tierCeilingPercent}%) and Product Category ceilings. Overages trigger approval automatically at submission.
-          </p>
         </div>
       </div>
 
       {/* Smart Upsell and Cross-Sell Suggestions */}
-      <div className="space-y-3.5 pt-2">
+      <div className="space-y-3.5 pt-1">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-sky-500" />
@@ -815,7 +823,7 @@ export function QuotationBuilder({
           {/* Card 1: Wireless Mouse */}
           <div
             onClick={() => handleAddSuggestion("Wireless Mouse", 35, true)}
-            className="rounded-2xl border border-border bg-card p-4.5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
+            className="rounded-2xl border border-border/80 bg-card p-4.5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
           >
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
@@ -840,7 +848,7 @@ export function QuotationBuilder({
           {/* Card 2: Docking Station */}
           <div
             onClick={() => handleAddSuggestion("Docking Station", 180, true)}
-            className="rounded-2xl border border-border bg-card p-4.5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
+            className="rounded-2xl border border-border/80 bg-card p-4.5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
           >
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
@@ -865,7 +873,7 @@ export function QuotationBuilder({
           {/* Card 3: Care Plan 2yr */}
           <div
             onClick={() => handleAddSuggestion("Care Plan 2yr", 46, true)}
-            className="rounded-2xl border border-border bg-card p-4.5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
+            className="rounded-2xl border border-border/80 bg-card p-4.5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
           >
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-500/20">
@@ -890,8 +898,8 @@ export function QuotationBuilder({
       </div>
 
       {/* Financial Summary & Bottom Actions Bar */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-xs flex flex-col md:flex-row items-center justify-between gap-6">
-        {/* Left Side: Summary Breakdown */}
+      <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-xs flex flex-col md:flex-row items-center justify-between gap-6">
+        {/* Summary Breakdown */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 w-full md:w-auto">
           <div>
             <span className="text-[11px] font-medium text-muted-foreground block">Gross Subtotal</span>
@@ -922,7 +930,7 @@ export function QuotationBuilder({
           </div>
         </div>
 
-        {/* Right Side: CTAs */}
+        {/* CTAs */}
         <div className="flex items-center gap-3 w-full md:w-auto justify-end">
           <button
             type="button"
@@ -938,7 +946,11 @@ export function QuotationBuilder({
             type="button"
             disabled={isSaving || isSubmitting || lines.length === 0}
             onClick={handleSubmitApproval}
-            className="rounded-xl bg-[#0070f3] hover:bg-[#0761d1] text-white px-6 py-2.5 text-xs font-semibold transition-all shadow-xs flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+            className={`rounded-xl px-6 py-2.5 text-xs font-semibold transition-all shadow-xs flex items-center gap-2 ${
+              lines.length === 0
+                ? "bg-muted text-muted-foreground border border-border cursor-not-allowed"
+                : "bg-[#0070f3] hover:bg-[#0761d1] text-white cursor-pointer shadow-sm hover:shadow"
+            }`}
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             Submit for Approval
