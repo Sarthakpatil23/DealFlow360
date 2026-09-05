@@ -8,7 +8,13 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import Image from "next/image";
 import { Loader2 } from "lucide-react";
 
-export function AuthScreen({ className }: { className?: string }) {
+export function AuthScreen({
+  className,
+  callbackUrl,
+}: {
+  className?: string;
+  callbackUrl?: string;
+}) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +39,9 @@ export function AuthScreen({ className }: { className?: string }) {
     const formData = new FormData();
     formData.append("email", email);
     formData.append("password", password);
+    if (callbackUrl) {
+      formData.append("callbackUrl", callbackUrl);
+    }
 
     try {
       const res = await loginWithCredentials(undefined, formData);
@@ -172,6 +181,36 @@ export function AuthScreen({ className }: { className?: string }) {
                   "Sign In"
                 )}
               </button>
+
+              {/* Demo Personas for Quick Access */}
+              <div className="pt-3 mt-4 border-t border-border/60">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-medium text-muted-foreground">Demo Accounts</span>
+                  <span className="text-[10px] text-muted-foreground/80 font-mono">pass: password123</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: "Sales Rep", email: "jrao@dealflow.com" },
+                    { label: "Manager", email: "mshah@dealflow.com" },
+                    { label: "Finance", email: "riyer@dealflow.com" },
+                    { label: "Admin", email: "admin@dealflow.com" },
+                    { label: "Customer", email: "buyer@betaind.com" },
+                  ].map((acc) => (
+                    <button
+                      key={acc.email}
+                      type="button"
+                      onClick={() => {
+                        setEmail(acc.email);
+                        setPassword("password123");
+                        setError(null);
+                      }}
+                      className="px-2 py-1 rounded-md text-[11px] font-medium bg-muted hover:bg-muted/80 text-foreground/80 hover:text-foreground border border-border/50 transition-colors"
+                    >
+                      {acc.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </form>
           ) : (
             /* SIGN UP FORM */

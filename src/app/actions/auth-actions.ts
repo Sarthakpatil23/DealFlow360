@@ -13,10 +13,17 @@ export async function loginWithCredentials(
   try {
     const email = (formData.get("email") as string)?.trim().toLowerCase();
     const password = formData.get("password") as string;
-    const callbackUrl = (formData.get("callbackUrl") as string) || "/";
+    const rawCallbackUrl = (formData.get("callbackUrl") as string)?.trim();
 
     if (!email || !password) {
       return { error: "Email and password are required." };
+    }
+
+    // Determine proper destination: respect specific callbackUrl if not root or login, otherwise route by role
+    let callbackUrl = rawCallbackUrl;
+    if (!callbackUrl || callbackUrl === "/" || callbackUrl.startsWith("/login")) {
+      const internalUser = await prisma.user.findUnique({ where: { email } });
+      callbackUrl = internalUser ? "/dashboard" : "/portal";
     }
 
     await signIn("credentials", {
@@ -101,7 +108,7 @@ export async function signupAction(
       await signIn("credentials", {
         email,
         password,
-        redirectTo: "/",
+        redirectTo: "/portal",
       });
     } else {
       // Internal staff
@@ -121,7 +128,7 @@ export async function signupAction(
       await signIn("credentials", {
         email,
         password,
-        redirectTo: "/",
+        redirectTo: "/dashboard",
       });
     }
 

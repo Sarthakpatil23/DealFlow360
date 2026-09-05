@@ -38,8 +38,14 @@ export const authConfig = {
         pathname === "/admin" ||
         pathname.startsWith("/admin/");
 
-      // Root path '/' is public (Marketing Landing Page)
+      // Root path '/' is public for visitors, but redirects logged in users to their respective home
       if (pathname === "/") {
+        if (isLoggedIn) {
+          if (role === "CUSTOMER") {
+            return Response.redirect(new URL("/portal", nextUrl));
+          }
+          return Response.redirect(new URL("/dashboard", nextUrl));
+        }
         return true;
       }
 
