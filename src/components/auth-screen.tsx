@@ -5,6 +5,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { loginWithCredentials, signupAction } from "@/app/actions/auth-actions";
 import { ThemeToggle } from "@/components/theme-toggle";
+import Image from "next/image";
 import { Loader2 } from "lucide-react";
 
 export function AuthScreen({ className }: { className?: string }) {
@@ -344,32 +345,20 @@ export function AuthScreen({ className }: { className?: string }) {
         </div>
       </div>
 
-      {/* Right Side: Image Placeholder (ready for your custom image) */}
-      <div className="hidden lg:relative lg:flex items-center justify-center bg-muted/30 border-l border-border/50 p-12 overflow-hidden">
-        {/* Placeholder container */}
-        <div className="relative w-full h-full min-h-[500px] rounded-2xl border border-dashed border-border flex flex-col items-center justify-center text-center p-8 bg-muted/20">
-          <div className="h-12 w-12 rounded-xl bg-muted border border-border flex items-center justify-center text-muted-foreground mb-4">
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-          </div>
-          <p className="text-sm font-medium text-foreground/80">
-            Image Placeholder
-          </p>
-          <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-            Ready to be replaced with your custom visual or artwork.
-          </p>
-        </div>
+      {/* Right Side: 50% width of screen, 100vh full-bleed hero image */}
+      <div className="hidden lg:block relative w-full h-screen sticky top-0 bg-black overflow-hidden border-l border-border/40 select-none">
+        <Image
+          src="/images/auth-hero.jpg"
+          alt="DealFlow360 Hero Visual"
+          fill
+          priority
+          quality={100}
+          className="object-cover object-center"
+          sizes="50vw"
+        />
+        {/* Subtle decorative gradient overlays for a polished seamless look */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/30 via-transparent to-transparent pointer-events-none" />
       </div>
     </div>
   );
