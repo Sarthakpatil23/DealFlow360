@@ -77,6 +77,33 @@ export async function submitNegotiationRequestAction(
 
     let overLimitCount = 0;
 
+    let authorCustomerUserId: string | null = null;
+    let authorUserId: string | null = null;
+
+    if (session?.user?.id) {
+      if (session.user.role === "CUSTOMER") {
+        const custUser = await prisma.customerUser.findUnique({
+          where: { id: session.user.id },
+          select: { id: true },
+        });
+        if (custUser) authorCustomerUserId = custUser.id;
+      } else {
+        const staffUser = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { id: true },
+        });
+        if (staffUser) authorUserId = staffUser.id;
+      }
+    }
+
+    if (!authorCustomerUserId && !authorUserId) {
+      const defaultCustUser = await prisma.customerUser.findFirst({
+        where: { customerId: q.customerId },
+        select: { id: true },
+      });
+      if (defaultCustUser) authorCustomerUserId = defaultCustUser.id;
+    }
+
     // Create negotiation comment records
     for (const c of validComments) {
       const line = q.orderLines.find((l) => l.id === c.orderLineId);
@@ -95,7 +122,8 @@ export async function submitNegotiationRequestAction(
         data: {
           quotationId: q.id,
           orderLineId: c.orderLineId || null,
-          authorCustomerUserId: session?.user?.id || null,
+          authorCustomerUserId,
+          authorUserId,
           commentText: c.commentText?.trim() || "Proposed counter discount.",
           counterDiscountPercent:
             c.counterDiscountPercent !== undefined && !isNaN(c.counterDiscountPercent)
@@ -215,7 +243,16 @@ export async function respondToCounterNegotiationAction(
       return { success: false, error: "Quotation not found." };
     }
 
-    const actorUserId = session?.user?.id || q.ownerRepId;
+    let actorUserId = q.ownerRepId;
+    if (session?.user?.id && session.user.role !== "CUSTOMER") {
+      const validUser = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { id: true },
+      });
+      if (validUser) {
+        actorUserId = validUser.id;
+      }
+    }
 
     // -------------------------------------------------------------
     // OPTION 1: ACCEPT CUSTOMER COUNTER-OFFER
