@@ -28,6 +28,27 @@ export interface LineItemData {
   isUpsellAdd?: boolean;
 }
 
+export interface NegotiationItemDetail {
+  orderLineId: string;
+  productName: string;
+  originalDiscountPercent: number;
+  counterDiscountPercent: number;
+  effectiveLimitPercent: number;
+  isOverLimit: boolean;
+  overagePoints: number;
+  commentText?: string | null;
+}
+
+export interface NegotiationInfo {
+  isActive: boolean;
+  requestedDeliveryDate?: string | null;
+  items: NegotiationItemDetail[];
+  latestCustomerComment?: string | null;
+  hasOverLimitAsk: boolean;
+  maxOveragePoints: number;
+  commentsCount: number;
+}
+
 export interface QuotationDetailData {
   id: string;
   displayCode: string;
@@ -40,6 +61,7 @@ export interface QuotationDetailData {
   orderLines: LineItemData[];
   returnedReason?: string | null;
   returnedBy?: string | null;
+  negotiationInfo?: NegotiationInfo | null;
 }
 
 /**
@@ -117,6 +139,14 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
           orderBy: { createdAt: "desc" },
           take: 5,
         },
+        negotiationComments: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            authorCustomerUser: true,
+            authorUser: true,
+            orderLine: { include: { product: true } },
+          },
+        },
       },
     });
 
@@ -134,6 +164,67 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
       effectiveLimitPercent: Number(line.effectiveLimitPercent),
       isUpsellAdd: line.isUpsellAdd,
     }));
+
+    // Extract active customer negotiation details
+    let negotiationInfo: NegotiationInfo | null = null;
+    const comments = quotation.negotiationComments || [];
+    const customerComments = comments.filter((c) => c.authorCustomerUserId !== null);
+
+    if (quotation.stage === QuotationStage.NEGOTIATION || comments.length > 0) {
+      const lineNegotiationMap = new Map<string, NegotiationItemDetail>();
+      let latestReqDate: string | null = null;
+      let hasOverLimitAsk = false;
+      let maxOverage = 0;
+
+      for (const c of comments) {
+        if (c.requestedDeliveryDate && !latestReqDate) {
+          latestReqDate = c.requestedDeliveryDate.toISOString();
+        }
+
+        if (c.orderLineId && !lineNegotiationMap.has(c.orderLineId)) {
+          const line = quotation.orderLines.find((l) => l.id === c.orderLineId);
+          if (line && c.counterDiscountPercent !== null && c.counterDiscountPercent !== undefined) {
+            const counterDisc = Number(c.counterDiscountPercent);
+            const origDisc = Number(line.discountPercent);
+            const limitCalc = calculateLineDiscountLimit({
+              customerTier: quotation.customer.tier,
+              productCategory: line.product.category,
+              discountPercent: counterDisc,
+            });
+
+            const overage = Math.max(0, counterDisc - limitCalc.effectiveLimitPercent);
+            if (overage > 0) {
+              hasOverLimitAsk = true;
+              if (overage > maxOverage) maxOverage = overage;
+            }
+
+            lineNegotiationMap.set(c.orderLineId, {
+              orderLineId: line.id,
+              productName: line.product.name,
+              originalDiscountPercent: origDisc,
+              counterDiscountPercent: counterDisc,
+              effectiveLimitPercent: limitCalc.effectiveLimitPercent,
+              isOverLimit: limitCalc.isOverLimit,
+              overagePoints: overage,
+              commentText: c.commentText,
+            });
+          }
+        }
+      }
+
+      const latestCustomerComment =
+        customerComments[0]?.commentText || comments[0]?.commentText || null;
+
+      negotiationInfo = {
+        isActive: quotation.stage === QuotationStage.NEGOTIATION,
+        requestedDeliveryDate: latestReqDate,
+        items: Array.from(lineNegotiationMap.values()),
+        latestCustomerComment,
+        hasOverLimitAsk,
+        maxOveragePoints: maxOverage,
+        commentsCount: comments.length,
+      };
+    }
 
     // Check if quotation was returned for revision
     const returnedStep = quotation.approvalSteps.find((s) => s.status === "RETURNED");
@@ -165,6 +256,7 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
         orderLines: lines,
         returnedReason,
         returnedBy,
+        negotiationInfo,
       } as QuotationDetailData,
     };
   } catch (err: any) {

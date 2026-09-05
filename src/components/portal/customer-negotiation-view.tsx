@@ -21,6 +21,11 @@ import {
 } from "lucide-react";
 import { submitNegotiationRequestAction } from "@/app/actions/negotiation-actions";
 import { confirmQuotationAction } from "@/app/actions/quotation-actions";
+import {
+  ActionFeedbackModal,
+  FeedbackDetailItem,
+  FeedbackType,
+} from "@/components/ui/action-feedback-modal";
 
 export interface PortalOrderLine {
   id: string;
@@ -88,6 +93,22 @@ export function CustomerNegotiationView({ initialData }: Props) {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
+  // Action Feedback Modal State
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    type: FeedbackType;
+    title: string;
+    description: string;
+    details?: FeedbackDetailItem[];
+    primaryAction?: { label: string; onClick?: () => void; href?: string };
+    secondaryAction?: { label: string; onClick?: () => void; href?: string };
+  }>({
+    isOpen: false,
+    type: "success",
+    title: "",
+    description: "",
+  });
+
   const isConfirmed = data.stage === "CONFIRMED";
 
   // Handle Submit Request
@@ -115,6 +136,52 @@ export function CustomerNegotiationView({ initialData }: Props) {
         setData({ ...data, stage: "NEGOTIATION" });
         setLineComments({});
         setLineCounters({});
+
+        const count =
+          res.details?.itemsCount ||
+          payload.filter((p) => p.commentText || p.counterDiscountPercent !== undefined).length;
+
+        setModalState({
+          isOpen: true,
+          type: "success",
+          title: "Counter-Negotiation Request Submitted",
+          description:
+            res.message ||
+            "Your counter-proposal has been transmitted directly to your assigned sales representative. They will review your requested terms and respond shortly.",
+          details: [
+            { label: "Quotation Code", value: data.displayCode },
+            { label: "Organization", value: data.customerName },
+            {
+              label: "Proposals Submitted",
+              value: `${count} item(s)`,
+              badge: "In Review",
+              badgeColor: "purple",
+            },
+            {
+              label: "Deal Status",
+              value: "Under Negotiation",
+              badge: "Awaiting Rep",
+              badgeColor: "blue",
+            },
+            ...(requestedDate
+              ? [
+                  {
+                    label: "Requested Delivery",
+                    value: new Date(requestedDate).toLocaleDateString(),
+                  },
+                ]
+              : []),
+          ],
+          primaryAction: {
+            label: "View Portal Proposals",
+            href: "/portal",
+          },
+          secondaryAction: {
+            label: "Continue Reviewing",
+            onClick: () => {},
+          },
+        });
+
         router.refresh();
       } else {
         setFeedback({ type: "error", text: res.error || "Failed to submit negotiation request." });
@@ -139,13 +206,63 @@ export function CustomerNegotiationView({ initialData }: Props) {
           setData({ ...data, stage: "PENDING_APPROVAL" });
           setFeedback({
             type: "info",
-            text: res.message || "Final agreed terms exceed discount thresholds and have automatically re-entered the approval flow.",
+            text:
+              res.message ||
+              "Final agreed terms exceed discount thresholds and have automatically re-entered the approval flow.",
+          });
+
+          setModalState({
+            isOpen: true,
+            type: "warning",
+            title: "Order Submitted for Manager Re-Approval",
+            description:
+              res.message ||
+              "Final negotiated discounts exceed standard commercial delegation limits. Your order has been placed into the management approval queue.",
+            details: [
+              { label: "Quotation Code", value: data.displayCode },
+              { label: "Customer", value: data.customerName },
+              {
+                label: "Approval Step",
+                value: "Management Sign-off",
+                badge: "Re-Approval Required",
+                badgeColor: "amber",
+              },
+            ],
+            primaryAction: {
+              label: "Back to Dashboard",
+              href: "/portal",
+            },
           });
         } else {
           setData({ ...data, stage: "CONFIRMED" });
           setFeedback({
             type: "success",
-            text: res.message || "Quotation confirmed! Your order has been placed and sent to fulfillment.",
+            text:
+              res.message ||
+              "Quotation confirmed! Your order has been placed and sent to fulfillment.",
+          });
+
+          setModalState({
+            isOpen: true,
+            type: "success",
+            title: "Quotation Confirmed — Order Placed!",
+            description:
+              res.message ||
+              "Thank you for confirming! Your order has been officially recorded and dispatched to regional fulfillment warehouses.",
+            details: [
+              { label: "Quotation Code", value: data.displayCode },
+              { label: "Customer", value: data.customerName },
+              {
+                label: "Fulfillment Status",
+                value: "Scheduled for Shipment",
+                badge: "Order Placed",
+                badgeColor: "emerald",
+              },
+            ],
+            primaryAction: {
+              label: "View Order & Deliveries",
+              href: "/portal",
+            },
           });
         }
         router.refresh();
@@ -545,6 +662,18 @@ export function CustomerNegotiationView({ initialData }: Props) {
           </div>
         </div>
       )}
+
+      {/* Action Feedback Popup Modal */}
+      <ActionFeedbackModal
+        isOpen={modalState.isOpen}
+        onClose={() => setModalState((prev) => ({ ...prev, isOpen: false }))}
+        type={modalState.type}
+        title={modalState.title}
+        description={modalState.description}
+        details={modalState.details}
+        primaryAction={modalState.primaryAction}
+        secondaryAction={modalState.secondaryAction}
+      />
     </div>
   );
 }

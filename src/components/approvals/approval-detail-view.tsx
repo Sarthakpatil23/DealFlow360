@@ -25,6 +25,11 @@ import {
   Sparkles,
 } from "lucide-react";
 import { switchPersonaAction } from "@/app/actions/auth-actions";
+import {
+  ActionFeedbackModal,
+  FeedbackDetailItem,
+  FeedbackType,
+} from "@/components/ui/action-feedback-modal";
 
 interface ApprovalDetailViewProps {
   initialData: ApprovalDetailData;
@@ -41,6 +46,22 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  // Action Feedback Modal State
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    type: FeedbackType;
+    title: string;
+    description: string;
+    details?: FeedbackDetailItem[];
+    primaryAction?: { label: string; onClick?: () => void; href?: string };
+    secondaryAction?: { label: string; onClick?: () => void; href?: string };
+  }>({
+    isOpen: false,
+    type: "success",
+    title: "",
+    description: "",
+  });
 
   async function handleQuickSwitch(email: string) {
     setSwitchingPersona(true);
@@ -67,6 +88,33 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
       const res = await approveQuotationAction(data.quotationId);
       if (res.success) {
         setStatusMessage({ type: "success", text: res.message || "Approved successfully!" });
+        setModalState({
+          isOpen: true,
+          type: "success",
+          title: "Quotation Approval Confirmed",
+          description:
+            res.message ||
+            `Quotation ${data.displayCode} has been approved successfully and advanced in the workflow pipeline.`,
+          details: [
+            { label: "Quotation Code", value: data.displayCode },
+            { label: "Customer", value: data.customerName },
+            {
+              label: "Risk Rating",
+              value: data.blendedRisk,
+              badge: "Approved",
+              badgeColor: "emerald",
+            },
+            { label: "Next Stage", value: res.stage || "APPROVED" },
+          ],
+          primaryAction: {
+            label: "Return to Approvals Queue",
+            href: "/approvals",
+          },
+          secondaryAction: {
+            label: "Stay on Page",
+            onClick: () => {},
+          },
+        });
         router.refresh();
       } else {
         setStatusMessage({ type: "error", text: res.error || "Approval failed." });
@@ -95,6 +143,24 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
       if (res.success) {
         setStatusMessage({ type: "success", text: res.message || "Returned to rep." });
         setReturnModalOpen(false);
+        setModalState({
+          isOpen: true,
+          type: "warning",
+          title: "Quotation Returned for Revision",
+          description:
+            res.message ||
+            `Quotation ${data.displayCode} was returned to the sales representative with your revision notes.`,
+          details: [
+            { label: "Quotation Code", value: data.displayCode },
+            { label: "Customer", value: data.customerName },
+            { label: "Revision Note", value: returnNote.trim() },
+            { label: "New Status", value: "DRAFT", badge: "Returned", badgeColor: "amber" },
+          ],
+          primaryAction: {
+            label: "Return to Approvals Queue",
+            href: "/approvals",
+          },
+        });
         router.refresh();
       } else {
         setStatusMessage({ type: "error", text: res.error || "Failed to return." });
@@ -121,6 +187,23 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
       const res = await rejectQuotationAction(data.quotationId, "Rejected by approver");
       if (res.success) {
         setStatusMessage({ type: "success", text: res.message || "Quotation rejected." });
+        setModalState({
+          isOpen: true,
+          type: "error",
+          title: "Quotation Marked as Rejected",
+          description:
+            res.message ||
+            `Quotation ${data.displayCode} has been rejected and archived from active approval queues.`,
+          details: [
+            { label: "Quotation Code", value: data.displayCode },
+            { label: "Customer", value: data.customerName },
+            { label: "Status", value: "REJECTED", badge: "Archived", badgeColor: "neutral" },
+          ],
+          primaryAction: {
+            label: "Return to Approvals Queue",
+            href: "/approvals",
+          },
+        });
         router.refresh();
       } else {
         setStatusMessage({ type: "error", text: res.error || "Failed to reject." });
@@ -526,6 +609,18 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
           </div>
         </div>
       )}
+
+      {/* Action Feedback Popup Modal */}
+      <ActionFeedbackModal
+        isOpen={modalState.isOpen}
+        onClose={() => setModalState((prev) => ({ ...prev, isOpen: false }))}
+        type={modalState.type}
+        title={modalState.title}
+        description={modalState.description}
+        details={modalState.details}
+        primaryAction={modalState.primaryAction}
+        secondaryAction={modalState.secondaryAction}
+      />
     </div>
   );
 }

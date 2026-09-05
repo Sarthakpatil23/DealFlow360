@@ -12,6 +12,8 @@ import {
 
 export interface ApprovalActionResult {
   success: boolean;
+  stage?: string;
+  isFinalApproval?: boolean;
   message?: string;
   error?: string;
 }
@@ -177,6 +179,8 @@ export async function approveQuotationAction(
 
     return {
       success: true,
+      stage: isFinalApproval ? QuotationStage.APPROVED : QuotationStage.PENDING_APPROVAL,
+      isFinalApproval,
       message: isFinalApproval
         ? `Quotation ${quotation.displayCode} approved! Ready for customer review & fulfillment.`
         : `Approved by ${actor.name}. Re-assigned to Finance queue.`,
