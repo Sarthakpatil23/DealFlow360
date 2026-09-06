@@ -3,7 +3,8 @@ import { QuotationBuilder } from "@/components/quotations/quotation-builder";
 import { 
   getQuotationForBuilder, 
   getAvailableProductsList, 
-  getAvailableCustomersList 
+  getAvailableCustomersList,
+  getUpsellRulesList
 } from "@/app/actions/quotation-actions";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
@@ -14,6 +15,7 @@ export default async function NewQuotationPage() {
   const quoteResult = await getQuotationForBuilder("new");
   const availableProducts = await getAvailableProductsList();
   const availableCustomers = await getAvailableCustomersList();
+  const upsellRules = await getUpsellRulesList();
 
   return (
     <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-[#171717] dark:text-[#ededed] flex flex-col font-sans transition-colors duration-150">
@@ -28,6 +30,7 @@ export default async function NewQuotationPage() {
             initialData={quoteResult.data}
             availableProducts={availableProducts}
             availableCustomers={availableCustomers}
+            upsellRules={upsellRules}
           />
         ) : (
           <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-sm text-destructive max-w-xl mx-auto mt-12">

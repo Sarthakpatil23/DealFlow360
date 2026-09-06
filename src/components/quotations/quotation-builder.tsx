@@ -33,6 +33,8 @@ import {
   AlertCircle,
   MessageSquare,
   Calendar,
+  X,
+  RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -43,6 +45,10 @@ import {
   FeedbackDetailItem,
   FeedbackType,
 } from "@/components/ui/action-feedback-modal";
+import {
+  getDynamicUpsellSuggestions,
+  UpsellRuleData,
+} from "@/lib/business-logic/smart-upsell";
 
 interface CatalogProduct {
   id: string;
@@ -62,12 +68,14 @@ interface QuotationBuilderProps {
   initialData: QuotationDetailData;
   availableProducts: CatalogProduct[];
   availableCustomers?: CustomerOption[];
+  upsellRules?: UpsellRuleData[];
 }
 
 export function QuotationBuilder({
   initialData,
   availableProducts,
   availableCustomers = [],
+  upsellRules = [],
 }: QuotationBuilderProps) {
   const router = useRouter();
   const isNew = initialData.id === "new";
@@ -112,6 +120,32 @@ export function QuotationBuilder({
   const [isNegotiating, setIsNegotiating] = useState(false);
   const [repCounterNote, setRepCounterNote] = useState("");
   const [showCounterInput, setShowCounterInput] = useState(false);
+  const [dismissedSuggestionNames, setDismissedSuggestionNames] = useState<string[]>([]);
+
+  // Compute dynamic Smart Upsell recommendations based on active cart contents
+  const dynamicUpsellSuggestions = useMemo(() => {
+    return getDynamicUpsellSuggestions({
+      cartLines: lines.map((l) => ({
+        productId: l.productId,
+        productName: l.productName,
+        category: availableProducts.find(
+          (p) => p.name.toLowerCase() === l.productName.toLowerCase()
+        )?.category,
+      })),
+      allProducts: availableProducts,
+      upsellRules,
+      dismissedProductNames: dismissedSuggestionNames,
+      maxSuggestions: 3,
+    });
+  }, [lines, availableProducts, upsellRules, dismissedSuggestionNames]);
+
+  function handleDismissSuggestion(productName: string) {
+    setDismissedSuggestionNames((prev) => [...prev, productName]);
+  }
+
+  function handleResetDismissals() {
+    setDismissedSuggestionNames([]);
+  }
 
   // Customer tier ceiling percentage
   const tierCeilingPercent = customerTier === "GOLD" ? 15 : customerTier === "SILVER" ? 10 : 5;
@@ -1290,94 +1324,117 @@ export function QuotationBuilder({
 
       {/* Smart Upsell and Cross-Sell Suggestions */}
       <div className="space-y-3.5 pt-1">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-sky-500" />
             <h2 className="text-base font-bold text-foreground">
               Smart Upsell & Cross-Sell Suggestions
             </h2>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+              Live Cart Adaptive
+            </span>
           </div>
-          <span className="text-xs text-muted-foreground font-mono">
-            Click card to insert item into quotation
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Card 1: Wireless Mouse */}
-          <div
-            onClick={() => handleAddSuggestion("Wireless Mouse", 35, true)}
-            className="rounded-2xl border border-border/80 bg-card p-5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                +$18 Margin Booster
-              </span>
-              <Plus className="h-4 w-4 text-muted-foreground group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors" />
-            </div>
-            <div>
-              <div className="font-semibold text-sm text-foreground group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
-                Wireless Mouse
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Ergonomic high-precision optical mouse.
-              </p>
-            </div>
-            <div className="flex items-center justify-between pt-1 font-mono text-xs">
-              <span className="font-bold text-foreground">$35.00</span>
-              <span className="text-muted-foreground text-[11px] group-hover:underline">Click to add +</span>
-            </div>
-          </div>
-
-          {/* Card 2: Docking Station */}
-          <div
-            onClick={() => handleAddSuggestion("Docking Station", 180, true)}
-            className="rounded-2xl border border-border/80 bg-card p-5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
-                Promo: 12% off
-              </span>
-              <Plus className="h-4 w-4 text-muted-foreground group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors" />
-            </div>
-            <div>
-              <div className="font-semibold text-sm text-foreground group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
-                Docking Station
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Thunderbolt 4 dual 4K display hub.
-              </p>
-            </div>
-            <div className="flex items-center justify-between pt-1 font-mono text-xs">
-              <span className="font-bold text-foreground">$180.00</span>
-              <span className="text-muted-foreground text-[11px] group-hover:underline">Click to add +</span>
-            </div>
-          </div>
-
-          {/* Card 3: Care Plan 2yr */}
-          <div
-            onClick={() => handleAddSuggestion("Care Plan 2yr", 46, true)}
-            className="rounded-2xl border border-border/80 bg-card p-5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-500/20">
-                +$46 Monthly Recurring
-              </span>
-              <Plus className="h-4 w-4 text-muted-foreground group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors" />
-            </div>
-            <div>
-              <div className="font-semibold text-sm text-foreground group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
-                Care Plan 2yr (Recurring)
-              </div>
-              <p className="text-xs text-muted-foreground">
-                24/7 enterprise SLA hardware support.
-              </p>
-            </div>
-            <div className="flex items-center justify-between pt-1 font-mono text-xs">
-              <span className="font-bold text-foreground">$46.00/mo</span>
-              <span className="text-muted-foreground text-[11px] group-hover:underline">Click to add +</span>
-            </div>
+          <div className="flex items-center gap-3">
+            {dismissedSuggestionNames.length > 0 && (
+              <button
+                type="button"
+                onClick={handleResetDismissals}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground font-medium transition-colors"
+                title="Restore dismissed suggestions"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Restore dismissed ({dismissedSuggestionNames.length})
+              </button>
+            )}
+            <span className="text-xs text-muted-foreground font-mono hidden sm:inline">
+              Click card to insert item into quotation
+            </span>
           </div>
         </div>
+
+        {dynamicUpsellSuggestions.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border/80 bg-card/50 p-6 text-center space-y-2">
+            <div className="flex items-center justify-center gap-2 text-sm font-semibold text-foreground">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              All top companion products and add-ons are in your quotation
+            </div>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+              Your cart has all recommended accessories, services, and coverage plans attached for optimal deal margins.
+            </p>
+            {dismissedSuggestionNames.length > 0 && (
+              <button
+                type="button"
+                onClick={handleResetDismissals}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Show previously dismissed suggestions
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {dynamicUpsellSuggestions.map((suggestion) => {
+              const isPromo = suggestion.badgeType === "promo";
+              const isSubscription = suggestion.badgeType === "subscription" || suggestion.isSubscription;
+              const isMargin = suggestion.badgeType === "margin";
+
+              const badgeColorClasses = isPromo
+                ? "bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/20"
+                : isSubscription
+                ? "bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-500/20"
+                : isMargin
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20";
+
+              return (
+                <div
+                  key={suggestion.name}
+                  onClick={() => handleAddSuggestion(suggestion.name, suggestion.basePrice, true)}
+                  className="relative rounded-2xl border border-border/80 bg-card p-5 hover:border-sky-500/60 dark:hover:border-sky-400/60 hover:shadow-xs transition-all cursor-pointer group space-y-2 text-left flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${badgeColorClasses}`}>
+                        {suggestion.badge}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDismissSuggestion(suggestion.name);
+                          }}
+                          title="Dismiss this suggestion for session"
+                          className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                        <Plus className="h-4 w-4 text-muted-foreground group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-sm text-foreground group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
+                        {suggestion.name} {isSubscription && <span className="text-xs font-normal text-muted-foreground">(Recurring)</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                        {suggestion.reason}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-border/40 font-mono text-xs">
+                    <span className="font-bold text-foreground">
+                      ${suggestion.basePrice.toFixed(2)}{isSubscription ? "/mo" : ""}
+                    </span>
+                    <span className="text-sky-600 dark:text-sky-400 font-sans font-semibold text-[11px] group-hover:underline">
+                      + Add to Quote
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Financial Summary & Bottom Actions Bar */}

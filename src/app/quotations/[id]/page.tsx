@@ -3,7 +3,8 @@ import { QuotationBuilder } from "@/components/quotations/quotation-builder";
 import { 
   getQuotationForBuilder, 
   getAvailableProductsList, 
-  getAvailableCustomersList 
+  getAvailableCustomersList,
+  getUpsellRulesList
 } from "@/app/actions/quotation-actions";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -18,6 +19,7 @@ export default async function QuotationDetailPage({ params }: PageProps) {
   const quoteResult = await getQuotationForBuilder(params.id);
   const availableProducts = await getAvailableProductsList();
   const availableCustomers = await getAvailableCustomersList();
+  const upsellRules = await getUpsellRulesList();
 
   if (!quoteResult.success || !quoteResult.data) {
     // If not found by ID, attempt to return default Q-1042 view or notFound
@@ -55,6 +57,7 @@ export default async function QuotationDetailPage({ params }: PageProps) {
           initialData={quoteResult.data}
           availableProducts={availableProducts}
           availableCustomers={availableCustomers}
+          upsellRules={upsellRules}
         />
       </main>
     </div>

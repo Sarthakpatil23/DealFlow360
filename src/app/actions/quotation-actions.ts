@@ -314,6 +314,30 @@ export async function getAvailableCustomersList() {
   }
 }
 
+export async function getUpsellRulesList() {
+  try {
+    const rules = await prisma.upsellRule.findMany({
+      include: {
+        baseProduct: { select: { id: true, name: true } },
+        suggestedProduct: { select: { id: true, name: true, category: true, basePrice: true } },
+      },
+    });
+
+    return rules.map((r) => ({
+      id: r.id,
+      baseProductId: r.baseProductId,
+      baseProductName: r.baseProduct.name,
+      suggestedProductId: r.suggestedProductId,
+      suggestedProductName: r.suggestedProduct.name,
+      isPromoted: r.isPromoted,
+      minMarginThreshold: Number(r.minMarginThreshold),
+    }));
+  } catch (err) {
+    console.error("Failed to fetch upsell rules:", err);
+    return [];
+  }
+}
+
 export async function saveQuotationAsDraft(payload: {
   id?: string;
   displayCode?: string;
