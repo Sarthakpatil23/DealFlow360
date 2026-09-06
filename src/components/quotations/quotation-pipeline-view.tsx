@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Layers,
   Building,
+  MessageSquare,
 } from "lucide-react";
 
 export interface QuotationSummaryItem {
@@ -261,6 +262,12 @@ export function QuotationPipelineView({ initialQuotations }: QuotationPipelineVi
                             <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
                               <ShieldCheck className="w-3 h-3" />
                               LOW
+                            </span>
+                          )}
+                          {quote.stage === "NEGOTIATION" && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300">
+                              <MessageSquare className="w-3 h-3" />
+                              Counter
                             </span>
                           )}
                         </div>

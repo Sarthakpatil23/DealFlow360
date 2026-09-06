@@ -31,10 +31,18 @@ import {
   Info,
   PackagePlus,
   AlertCircle,
+  MessageSquare,
+  Calendar,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CustomerComboboxSelector } from "@/components/quotations/customer-combobox-selector";
+import { respondToCounterNegotiationAction } from "@/app/actions/negotiation-actions";
+import {
+  ActionFeedbackModal,
+  FeedbackDetailItem,
+  FeedbackType,
+} from "@/components/ui/action-feedback-modal";
 
 interface CatalogProduct {
   id: string;
@@ -83,6 +91,27 @@ export function QuotationBuilder({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Modal feedback popup state
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    type: FeedbackType;
+    title: string;
+    description: string;
+    details?: FeedbackDetailItem[];
+    primaryAction?: { label: string; onClick?: () => void; href?: string };
+    secondaryAction?: { label: string; onClick?: () => void; href?: string };
+    autoCloseMs?: number;
+  }>({
+    isOpen: false,
+    type: "success",
+    title: "",
+    description: "",
+  });
+
+  const [isNegotiating, setIsNegotiating] = useState(false);
+  const [repCounterNote, setRepCounterNote] = useState("");
+  const [showCounterInput, setShowCounterInput] = useState(false);
 
   // Customer tier ceiling percentage
   const tierCeilingPercent = customerTier === "GOLD" ? 15 : customerTier === "SILVER" ? 10 : 5;
@@ -237,11 +266,26 @@ export function QuotationBuilder({
     if (res.success) {
       setStage("DRAFT");
       setSaveSuccessMessage(res.message || `Quotation ${res.displayCode} saved as Draft.`);
-      
+
+      setModalState({
+        isOpen: true,
+        type: "success",
+        title: "Draft Saved Successfully",
+        description:
+          res.message || `Quotation ${res.displayCode || displayCode} has been saved as Draft.`,
+        details: [
+          { label: "Quotation Code", value: res.displayCode || displayCode },
+          { label: "Customer", value: customerName },
+          { label: "Total Lines", value: `${lines.length} line(s)` },
+          { label: "Stage", value: "DRAFT", badge: "Draft", badgeColor: "neutral" },
+        ],
+        autoCloseMs: 3500,
+      });
+
       if (isNew && res.displayCode) {
         setTimeout(() => {
           router.push(`/quotations/${res.displayCode}`);
-        }, 700);
+        }, 800);
       } else {
         setTimeout(() => setSaveSuccessMessage(null), 4000);
         router.refresh();
@@ -278,17 +322,214 @@ export function QuotationBuilder({
       const nextStage = res.stage || "PENDING_APPROVAL";
       setStage(nextStage);
       setSaveSuccessMessage(res.message || "Quotation submitted for approval successfully!");
-      
+
+      const isAutoApproved = nextStage === "APPROVED";
       const targetCode = saveRes.displayCode || displayCode;
+
+      setModalState({
+        isOpen: true,
+        type: isAutoApproved ? "success" : "warning",
+        title: isAutoApproved ? "Quotation Auto-Approved!" : "Quotation Submitted for Approval",
+        description:
+          res.message ||
+          (isAutoApproved
+            ? "All line discounts comply with category and customer tier limits. Auto-approved without delay!"
+            : "Discounts exceed standard limits and have been routed to the management approval chain."),
+        details: [
+          { label: "Quotation Code", value: targetCode },
+          { label: "Customer", value: customerName },
+          {
+            label: "Risk Level",
+            value: res.riskLevel || (isAutoApproved ? "LOW" : "MEDIUM/HIGH"),
+            badge: isAutoApproved ? "Auto-Approved" : "Approval Required",
+            badgeColor: isAutoApproved ? "emerald" : "amber",
+          },
+          { label: "Current Stage", value: nextStage },
+        ],
+        primaryAction: isAutoApproved
+          ? { label: "View Quotation", href: `/quotations/${targetCode}` }
+          : { label: "Track in Approvals Queue", href: `/approvals/${targetCode}` },
+      });
+
       setTimeout(() => {
         if (nextStage === "APPROVED") {
           router.push(`/quotations/${targetCode}`);
         } else {
           router.push(`/approvals/${targetCode}`);
         }
-      }, 900);
+      }, 1400);
     } else {
       setErrorMessage(res.error || "Failed to submit for approval");
+    }
+  }
+
+  // Accept Customer Counter-Offer
+  async function handleAcceptCounterNegotiation() {
+    if (!initialData.id || initialData.id === "new") return;
+    setIsNegotiating(true);
+    setErrorMessage(null);
+
+    try {
+      const acceptedDiscounts: Record<string, number> = {};
+      if (initialData.negotiationInfo?.items) {
+        for (const item of initialData.negotiationInfo.items) {
+          acceptedDiscounts[item.orderLineId] = item.counterDiscountPercent;
+        }
+      }
+
+      const res = await respondToCounterNegotiationAction(
+        initialData.id,
+        "ACCEPT",
+        acceptedDiscounts,
+        repCounterNote
+      );
+
+      if (res.success) {
+        setLines((prevLines) =>
+          prevLines.map((line) => {
+            const accepted = line.id ? acceptedDiscounts[line.id] : undefined;
+            if (accepted !== undefined) {
+              return { ...line, discountPercent: accepted };
+            }
+            return line;
+          })
+        );
+
+        if (res.stage) setStage(res.stage);
+
+        const isEscalated = res.requiresEscalation;
+
+        setModalState({
+          isOpen: true,
+          type: isEscalated ? "warning" : "success",
+          title: isEscalated
+            ? "Counter-Offer Escalated for Approval"
+            : "Counter-Offer Accepted & Approved",
+          description:
+            res.message ||
+            (isEscalated
+              ? "Customer discount request exceeds commercial limits. Escalated to Sales Manager & Finance."
+              : "Discounts are within your commercial authority. The quotation is now Approved and ready for final customer confirmation."),
+          details: [
+            { label: "Quotation Code", value: displayCode },
+            { label: "Customer", value: customerName },
+            {
+              label: "Approval Status",
+              value: isEscalated ? "Requires Management Sign-off" : "Direct Rep Sign-off",
+              badge: isEscalated ? "Escalated" : "Approved",
+              badgeColor: isEscalated ? "amber" : "emerald",
+            },
+            ...(res.details?.escalatedRoles && res.details.escalatedRoles.length > 0
+              ? [
+                  {
+                    label: "Assigned Approvers",
+                    value: res.details.escalatedRoles.join(" & "),
+                    badge: "In Queue",
+                    badgeColor: "purple" as const,
+                  },
+                ]
+              : []),
+          ],
+          primaryAction: isEscalated
+            ? { label: "Track in Approvals Queue", href: `/approvals/${displayCode}` }
+            : { label: "View Quotations Pipeline", href: "/quotations" },
+        });
+
+        router.refresh();
+      } else {
+        setErrorMessage(res.error || "Failed to accept counter-offer.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "An error occurred.");
+    } finally {
+      setIsNegotiating(false);
+    }
+  }
+
+  // Propose Counter-Terms
+  async function handleProposeAlternativeTerms() {
+    if (!initialData.id || initialData.id === "new") return;
+    setIsNegotiating(true);
+    setErrorMessage(null);
+
+    try {
+      const currentDiscounts: Record<string, number> = {};
+      lines.forEach((l) => {
+        if (l.id) currentDiscounts[l.id] = l.discountPercent;
+      });
+
+      const res = await respondToCounterNegotiationAction(
+        initialData.id,
+        "COUNTER",
+        currentDiscounts,
+        repCounterNote || "Revised pricing proposed by sales representative."
+      );
+
+      if (res.success) {
+        setModalState({
+          isOpen: true,
+          type: "info",
+          title: "Revised Proposal Sent to Customer",
+          description:
+            res.message ||
+            "Your counter-proposal and updated discounts have been routed to the customer negotiation portal.",
+          details: [
+            { label: "Quotation Code", value: displayCode },
+            { label: "Customer", value: customerName },
+            { label: "Stage", value: "NEGOTIATION", badge: "Awaiting Customer", badgeColor: "blue" },
+          ],
+          primaryAction: {
+            label: "Open Customer Portal View",
+            href: `/portal/${initialData.id}`,
+          },
+        });
+        setShowCounterInput(false);
+        router.refresh();
+      } else {
+        setErrorMessage(res.error || "Failed to submit counter-proposal.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "An error occurred.");
+    } finally {
+      setIsNegotiating(false);
+    }
+  }
+
+  // Decline Customer Counter-Offer
+  async function handleDeclineCounter() {
+    if (!initialData.id || initialData.id === "new") return;
+    setIsNegotiating(true);
+    setErrorMessage(null);
+
+    try {
+      const res = await respondToCounterNegotiationAction(
+        initialData.id,
+        "DECLINE",
+        undefined,
+        repCounterNote || "Declined customer counter-offer. Original pricing retained."
+      );
+
+      if (res.success) {
+        if (res.stage) setStage(res.stage);
+        setModalState({
+          isOpen: true,
+          type: "info",
+          title: "Customer Counter-Offer Declined",
+          description:
+            res.message || "Original pricing terms and quotation specifications have been retained.",
+          details: [
+            { label: "Quotation Code", value: displayCode },
+            { label: "Pricing State", value: "Original Maintained", badge: "Retained", badgeColor: "neutral" },
+          ],
+        });
+        router.refresh();
+      } else {
+        setErrorMessage(res.error || "Failed to decline counter-offer.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "An error occurred.");
+    } finally {
+      setIsNegotiating(false);
     }
   }
 
@@ -457,6 +698,243 @@ export function QuotationBuilder({
           </div>
         </div>
       )}
+
+      {/* Customer Counter-Negotiation & Pricing Review Banner */}
+      {initialData.negotiationInfo &&
+        (initialData.negotiationInfo.isActive ||
+          initialData.negotiationInfo.items.length > 0 ||
+          stage === "NEGOTIATION") && (
+          <div className="rounded-2xl border border-purple-300 dark:border-purple-800/70 bg-purple-50/50 dark:bg-purple-950/20 p-5 sm:p-6 shadow-sm space-y-4">
+            {/* Banner Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-200/60 dark:border-purple-800/50 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-purple-950 dark:text-purple-100">
+                      Customer Counter-Negotiation Proposal
+                    </h2>
+                    <span className="text-[10px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-purple-200/80 dark:bg-purple-900 text-purple-900 dark:text-purple-200 border border-purple-300 dark:border-purple-700 uppercase">
+                      Under Negotiation
+                    </span>
+                  </div>
+                  <p className="text-xs text-purple-800/80 dark:text-purple-300/80 mt-0.5">
+                    Customer counter-discount requests and notes. Review the ceiling limits below to decide next steps.
+                  </p>
+                </div>
+              </div>
+
+              {/* Authority Verdict Badge */}
+              <div className="shrink-0">
+                {initialData.negotiationInfo.hasOverLimitAsk ? (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 text-xs font-semibold shadow-2xs">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <span>
+                      Exceeds Limits (+{initialData.negotiationInfo.maxOveragePoints}pt) — Manager Approval Required
+                    </span>
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 text-xs font-semibold shadow-2xs">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Within Limits — Sales Rep Direct Authority</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Customer Message & Requested Delivery */}
+            {(initialData.negotiationInfo.latestCustomerComment ||
+              initialData.negotiationInfo.requestedDeliveryDate) && (
+              <div className="rounded-xl border border-purple-200/80 dark:border-purple-800/60 bg-white dark:bg-[#0a0a0a] p-3.5 space-y-2 text-xs">
+                {initialData.negotiationInfo.latestCustomerComment && (
+                  <div className="flex items-start gap-2">
+                    <span className="font-semibold text-neutral-500 uppercase text-[10px] shrink-0 mt-0.5">
+                      Customer Note:
+                    </span>
+                    <span className="italic text-neutral-800 dark:text-neutral-200 font-medium">
+                      &ldquo;{initialData.negotiationInfo.latestCustomerComment}&rdquo;
+                    </span>
+                  </div>
+                )}
+                {initialData.negotiationInfo.requestedDeliveryDate && (
+                  <div className="flex items-center gap-2 text-neutral-600 dark:text-neutral-300 font-mono text-[11px]">
+                    <Calendar className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    <span>Requested Delivery Date:</span>
+                    <span className="font-semibold">
+                      {new Date(initialData.negotiationInfo.requestedDeliveryDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Per-Line Counter Asks Comparison Table */}
+            {initialData.negotiationInfo.items.length > 0 && (
+              <div className="rounded-xl border border-purple-200/80 dark:border-purple-800/60 bg-white dark:bg-[#0a0a0a] overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-purple-50/60 dark:bg-purple-950/40 border-b border-purple-200/50 dark:border-purple-800/50 text-[11px] font-semibold text-purple-900 dark:text-purple-200">
+                    <tr>
+                      <th className="px-4 py-2.5">Line Item</th>
+                      <th className="px-4 py-2.5">Original Discount</th>
+                      <th className="px-4 py-2.5">Customer Ask</th>
+                      <th className="px-4 py-2.5">Allowed Limit</th>
+                      <th className="px-4 py-2.5">Status & Delegation</th>
+                      <th className="px-4 py-2.5 text-right">Quick Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
+                    {initialData.negotiationInfo.items.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
+                        <td className="px-4 py-3 font-medium text-neutral-900 dark:text-neutral-100">
+                          {item.productName}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-neutral-500">
+                          {item.originalDiscountPercent}%
+                        </td>
+                        <td className="px-4 py-3 font-mono font-bold text-purple-700 dark:text-purple-300">
+                          {item.counterDiscountPercent}%
+                        </td>
+                        <td className="px-4 py-3 font-mono text-neutral-600 dark:text-neutral-400">
+                          {item.effectiveLimitPercent}%
+                        </td>
+                        <td className="px-4 py-3">
+                          {item.isOverLimit ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                              <AlertTriangle className="w-3 h-3" />
+                              {item.overagePoints}pt OVER (Manager Sign-off)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Within Limit (Rep Authority)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLines((prev) =>
+                                prev.map((l) =>
+                                  l.id === item.orderLineId
+                                    ? { ...l, discountPercent: item.counterDiscountPercent }
+                                    : l
+                                )
+                              );
+                              setSaveSuccessMessage(
+                                `Applied customer discount (${item.counterDiscountPercent}%) to ${item.productName}`
+                              );
+                              setTimeout(() => setSaveSuccessMessage(null), 3000);
+                            }}
+                            className="text-[11px] font-semibold text-[#0070f3] hover:underline cursor-pointer"
+                          >
+                            Apply to Line
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Rep Decision Action Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+              <div className="text-xs text-purple-900/80 dark:text-purple-300/80 font-medium">
+                {initialData.negotiationInfo.hasOverLimitAsk ? (
+                  <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    Accepting will update line discounts and automatically trigger Step 1 (Sales Manager) & Step 2 (Finance) approval.
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    All counter asks are within your limit ceiling. You can accept and approve directly.
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+                <button
+                  type="button"
+                  disabled={isNegotiating}
+                  onClick={handleDeclineCounter}
+                  className="px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0a0a0a] text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-2xs cursor-pointer"
+                >
+                  Decline Counter-Offer
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isNegotiating}
+                  onClick={() => setShowCounterInput(!showCounterInput)}
+                  className="px-3 py-2 rounded-xl border border-purple-300 dark:border-purple-700 bg-white dark:bg-[#0a0a0a] text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/50 transition-colors shadow-2xs cursor-pointer"
+                >
+                  Propose Counter-Terms
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isNegotiating}
+                  onClick={handleAcceptCounterNegotiation}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer ${
+                    initialData.negotiationInfo.hasOverLimitAsk
+                      ? "bg-amber-600 hover:bg-amber-700"
+                      : "bg-emerald-600 hover:bg-emerald-700"
+                  }`}
+                >
+                  {isNegotiating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : initialData.negotiationInfo.hasOverLimitAsk ? (
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {initialData.negotiationInfo.hasOverLimitAsk
+                      ? "Accept & Escalate to Management"
+                      : "Accept Counter-Offer & Approve"}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Expandable Rep Counter Input */}
+            {showCounterInput && (
+              <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-[#0a0a0a] p-4 space-y-3 animate-in fade-in duration-150">
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  Message & Revised Justification to Customer:
+                </label>
+                <textarea
+                  value={repCounterNote}
+                  onChange={(e) => setRepCounterNote(e.target.value)}
+                  rows={2}
+                  placeholder="e.g., We can offer 12% on Extended Warranty if bundled with setup..."
+                  className="w-full rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 p-2.5 text-xs text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCounterInput(false)}
+                    className="px-3 py-1.5 text-xs text-neutral-500 hover:text-neutral-800 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isNegotiating}
+                    onClick={handleProposeAlternativeTerms}
+                    className="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-2xs cursor-pointer"
+                  >
+                    Submit Counter-Proposal to Portal
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
       {/* 3 Parameter Cards with Harmonious Heights & Unified Borders */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -969,6 +1447,19 @@ export function QuotationBuilder({
           </button>
         </div>
       </div>
+
+      {/* Action Feedback Popup Modal */}
+      <ActionFeedbackModal
+        isOpen={modalState.isOpen}
+        onClose={() => setModalState((prev) => ({ ...prev, isOpen: false }))}
+        type={modalState.type}
+        title={modalState.title}
+        description={modalState.description}
+        details={modalState.details}
+        primaryAction={modalState.primaryAction}
+        secondaryAction={modalState.secondaryAction}
+        autoCloseMs={modalState.autoCloseMs}
+      />
     </div>
   );
 }

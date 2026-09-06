@@ -28,6 +28,27 @@ export interface LineItemData {
   isUpsellAdd?: boolean;
 }
 
+export interface NegotiationItemDetail {
+  orderLineId: string;
+  productName: string;
+  originalDiscountPercent: number;
+  counterDiscountPercent: number;
+  effectiveLimitPercent: number;
+  isOverLimit: boolean;
+  overagePoints: number;
+  commentText?: string | null;
+}
+
+export interface NegotiationInfo {
+  isActive: boolean;
+  requestedDeliveryDate?: string | null;
+  items: NegotiationItemDetail[];
+  latestCustomerComment?: string | null;
+  hasOverLimitAsk: boolean;
+  maxOveragePoints: number;
+  commentsCount: number;
+}
+
 export interface QuotationDetailData {
   id: string;
   displayCode: string;
@@ -40,6 +61,7 @@ export interface QuotationDetailData {
   orderLines: LineItemData[];
   returnedReason?: string | null;
   returnedBy?: string | null;
+  negotiationInfo?: NegotiationInfo | null;
 }
 
 /**
@@ -117,6 +139,14 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
           orderBy: { createdAt: "desc" },
           take: 5,
         },
+        negotiationComments: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            authorCustomerUser: true,
+            authorUser: true,
+            orderLine: { include: { product: true } },
+          },
+        },
       },
     });
 
@@ -134,6 +164,67 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
       effectiveLimitPercent: Number(line.effectiveLimitPercent),
       isUpsellAdd: line.isUpsellAdd,
     }));
+
+    // Extract active customer negotiation details
+    let negotiationInfo: NegotiationInfo | null = null;
+    const comments = quotation.negotiationComments || [];
+    const customerComments = comments.filter((c) => c.authorCustomerUserId !== null);
+
+    if (quotation.stage === QuotationStage.NEGOTIATION || comments.length > 0) {
+      const lineNegotiationMap = new Map<string, NegotiationItemDetail>();
+      let latestReqDate: string | null = null;
+      let hasOverLimitAsk = false;
+      let maxOverage = 0;
+
+      for (const c of comments) {
+        if (c.requestedDeliveryDate && !latestReqDate) {
+          latestReqDate = c.requestedDeliveryDate.toISOString();
+        }
+
+        if (c.orderLineId && !lineNegotiationMap.has(c.orderLineId)) {
+          const line = quotation.orderLines.find((l) => l.id === c.orderLineId);
+          if (line && c.counterDiscountPercent !== null && c.counterDiscountPercent !== undefined) {
+            const counterDisc = Number(c.counterDiscountPercent);
+            const origDisc = Number(line.discountPercent);
+            const limitCalc = calculateLineDiscountLimit({
+              customerTier: quotation.customer.tier,
+              productCategory: line.product.category,
+              discountPercent: counterDisc,
+            });
+
+            const overage = Math.max(0, counterDisc - limitCalc.effectiveLimitPercent);
+            if (overage > 0) {
+              hasOverLimitAsk = true;
+              if (overage > maxOverage) maxOverage = overage;
+            }
+
+            lineNegotiationMap.set(c.orderLineId, {
+              orderLineId: line.id,
+              productName: line.product.name,
+              originalDiscountPercent: origDisc,
+              counterDiscountPercent: counterDisc,
+              effectiveLimitPercent: limitCalc.effectiveLimitPercent,
+              isOverLimit: limitCalc.isOverLimit,
+              overagePoints: overage,
+              commentText: c.commentText,
+            });
+          }
+        }
+      }
+
+      const latestCustomerComment =
+        customerComments[0]?.commentText || comments[0]?.commentText || null;
+
+      negotiationInfo = {
+        isActive: quotation.stage === QuotationStage.NEGOTIATION,
+        requestedDeliveryDate: latestReqDate,
+        items: Array.from(lineNegotiationMap.values()),
+        latestCustomerComment,
+        hasOverLimitAsk,
+        maxOveragePoints: maxOverage,
+        commentsCount: comments.length,
+      };
+    }
 
     // Check if quotation was returned for revision
     const returnedStep = quotation.approvalSteps.find((s) => s.status === "RETURNED");
@@ -165,6 +256,7 @@ export async function getQuotationForBuilder(idOrDisplayCode: string) {
         orderLines: lines,
         returnedReason,
         returnedBy,
+        negotiationInfo,
       } as QuotationDetailData,
     };
   } catch (err: any) {
@@ -396,7 +488,13 @@ export async function submitQuotation(idOrDisplayCode: string) {
     let actorUserId = q.ownerRepId;
     try {
       const session = await auth();
-      if (session?.user?.id) actorUserId = session.user.id;
+      if (session?.user?.id && session.user.role !== "CUSTOMER") {
+        const validUser = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { id: true },
+        });
+        if (validUser) actorUserId = validUser.id;
+      }
     } catch {
       // Ignored outside Next.js request context
     }
@@ -577,16 +675,46 @@ export async function confirmQuotationAction(
       return { success: false, error: "Quotation not found" };
     }
 
-    // Resolve actor
-    let resolvedActorId = actorUserId;
+    // Resolve actor (AuditLogEntry actorUserId foreign key references the internal User table)
+    let session: any = null;
+    try {
+      session = await auth();
+    } catch {}
+
+    const isCustomer = session?.user?.role === "CUSTOMER";
+    const customerActorName = isCustomer
+      ? (session?.user?.name || q.customer.name)
+      : null;
+
+    let resolvedActorId: string | null = null;
+
+    // 1. If actorUserId was explicitly provided, verify it exists in User table
+    if (actorUserId) {
+      const validUser = await prisma.user.findUnique({
+        where: { id: actorUserId },
+        select: { id: true },
+      });
+      if (validUser) resolvedActorId = validUser.id;
+    }
+
+    // 2. If session user is internal staff (not CUSTOMER), verify in User table
+    if (!resolvedActorId && session?.user?.id && !isCustomer) {
+      const validUser = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { id: true },
+      });
+      if (validUser) resolvedActorId = validUser.id;
+    }
+
+    // 3. Fall back to quotation owner representative (always a valid User per relation)
     if (!resolvedActorId) {
-      const session = await auth();
-      if (session?.user?.id) {
-        resolvedActorId = session.user.id;
-      } else {
-        const fallbackUser = await prisma.user.findFirst();
-        resolvedActorId = fallbackUser?.id || q.ownerRepId;
-      }
+      resolvedActorId = q.ownerRepId;
+    }
+
+    // 4. Absolute fallback to first available staff user if needed
+    if (!resolvedActorId) {
+      const fallbackUser = await prisma.user.findFirst({ select: { id: true } });
+      resolvedActorId = fallbackUser?.id || "";
     }
 
     // STEP 28: Check if final terms violate limits (Auto re-approval check)
@@ -633,12 +761,16 @@ export async function confirmQuotationAction(
         });
       }
 
+      const haltNote = isCustomer
+        ? `Confirmation halted: Customer (${customerActorName}) agreed terms exceeded limits (+${riskResult.totalOveragePoints}pt). Auto re-entered ${riskResult.riskLevel} approval chain.`
+        : `Confirmation halted: Final agreed terms exceeded limits (+${riskResult.totalOveragePoints}pt). Auto re-entered ${riskResult.riskLevel} approval chain.`;
+
       await prisma.auditLogEntry.create({
         data: {
           quotationId: q.id,
           actorUserId: resolvedActorId,
           action: AuditAction.SUBMITTED,
-          note: `Confirmation halted: Final agreed terms exceeded limits (+${riskResult.totalOveragePoints}pt). Auto re-entered ${riskResult.riskLevel} approval chain.`,
+          note: haltNote,
         },
       });
 
@@ -661,12 +793,16 @@ export async function confirmQuotationAction(
       },
     });
 
+    const confirmNote = isCustomer
+      ? `Customer (${customerActorName}) confirmed quotation as final order. Ready for fulfillment and billing.`
+      : `Quotation confirmed as final order. Ready for fulfillment and billing.`;
+
     await prisma.auditLogEntry.create({
       data: {
         quotationId: q.id,
         actorUserId: resolvedActorId,
         action: AuditAction.APPROVED,
-        note: `Quotation confirmed as final order. Ready for fulfillment and billing.`,
+        note: confirmNote,
       },
     });
 
@@ -769,6 +905,8 @@ function revalidateAllQuotationPaths(q: { id: string; displayCode: string }) {
     revalidatePath("/fulfillment");
     revalidatePath("/dashboard");
     revalidatePath("/portal");
+    revalidatePath(`/portal/${q.id}`);
+    revalidatePath(`/portal/${q.displayCode}`);
   } catch {}
 }
 

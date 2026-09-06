@@ -5,6 +5,7 @@ import { TopNav } from "@/components/navigation/top-nav";
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { getDashboardData } from "@/lib/dashboard-data";
+import { ActiveNegotiationsView } from "@/components/dashboard/active-negotiations-view";
 import { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -51,8 +52,13 @@ export default async function SalesDashboardPage({
     name: session?.user?.name,
   };
 
-  const { roleBadge, summaryCards, quickActions, recentActivities } =
-    await getDashboardData(userContext);
+  const {
+    roleBadge,
+    summaryCards,
+    quickActions,
+    recentActivities,
+    activeNegotiations,
+  } = await getDashboardData(userContext);
 
   return (
     <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-[#171717] dark:text-[#ededed] flex flex-col font-sans transition-colors duration-150">
@@ -172,6 +178,12 @@ export default async function SalesDashboardPage({
             )
           )}
         </section>
+
+        {/* Active Customer Negotiations Surface */}
+        <ActiveNegotiationsView
+          negotiations={activeNegotiations}
+          userRole={effectiveRole}
+        />
 
         {/* Recent Activity Section */}
         <div className="pt-2">

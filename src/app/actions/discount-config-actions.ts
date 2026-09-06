@@ -116,8 +116,12 @@ export async function saveDiscountConfigAction(
     let actorUserId: string | null = null;
     try {
       const session = await auth();
-      if (session?.user?.id) {
-        actorUserId = session.user.id;
+      if (session?.user?.id && session.user.role !== "CUSTOMER") {
+        const validUser = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { id: true },
+        });
+        if (validUser) actorUserId = validUser.id;
       }
     } catch {
       // Ignored outside active session

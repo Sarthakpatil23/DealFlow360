@@ -12,6 +12,8 @@ import {
 
 export interface ApprovalActionResult {
   success: boolean;
+  stage?: string;
+  isFinalApproval?: boolean;
   message?: string;
   error?: string;
 }
@@ -148,7 +150,7 @@ export async function approveQuotationAction(
         },
       });
     } else {
-      // Mid-chain: Sales Manager approved HIGH risk, now re-assigned to Finance
+      // Mid-chain: Sales Manager approved HIGH risk, now passed to Finance for final signoff
       const nextRole = remainingSteps[0].requiredRole;
       await prisma.quotation.update({
         where: { id: quotationId },
@@ -161,8 +163,8 @@ export async function approveQuotationAction(
           actorUserId: actor.id,
           action: AuditAction.APPROVED,
           note: note
-            ? `${actor.name} approved: ${note}. Advanced to ${nextRole} queue.`
-            : `${actor.name} approved. Advanced to ${nextRole} queue.`,
+            ? `${actor.name} endorsed quotation: ${note}. Passed to ${nextRole} queue for final approval.`
+            : `${actor.name} endorsed quotation. Passed to ${nextRole} queue for final commercial approval.`,
         },
       });
     }
@@ -177,9 +179,11 @@ export async function approveQuotationAction(
 
     return {
       success: true,
+      stage: isFinalApproval ? QuotationStage.APPROVED : QuotationStage.PENDING_APPROVAL,
+      isFinalApproval,
       message: isFinalApproval
         ? `Quotation ${quotation.displayCode} approved! Ready for customer review & fulfillment.`
-        : `Approved by ${actor.name}. Re-assigned to Finance queue.`,
+        : `Quotation endorsed by ${actor.name} and passed to Finance (R. Iyer) for final approval.`,
     };
   } catch (error: any) {
     console.error("Failed to approve quotation:", error);

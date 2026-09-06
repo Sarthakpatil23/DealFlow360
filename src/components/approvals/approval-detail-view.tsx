@@ -23,8 +23,14 @@ import {
   AlertTriangle,
   UserCheck,
   Sparkles,
+  ArrowRight,
 } from "lucide-react";
 import { switchPersonaAction } from "@/app/actions/auth-actions";
+import {
+  ActionFeedbackModal,
+  FeedbackDetailItem,
+  FeedbackType,
+} from "@/components/ui/action-feedback-modal";
 
 interface ApprovalDetailViewProps {
   initialData: ApprovalDetailData;
@@ -42,6 +48,22 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
     text: string;
   } | null>(null);
 
+  // Action Feedback Modal State
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    type: FeedbackType;
+    title: string;
+    description: string;
+    details?: FeedbackDetailItem[];
+    primaryAction?: { label: string; onClick?: () => void; href?: string };
+    secondaryAction?: { label: string; onClick?: () => void; href?: string };
+  }>({
+    isOpen: false,
+    type: "success",
+    title: "",
+    description: "",
+  });
+
   async function handleQuickSwitch(email: string) {
     setSwitchingPersona(true);
     setStatusMessage(null);
@@ -56,8 +78,13 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
     }
   }
 
+  // Check if active step is Manager endorsement that must be passed to Finance
+  const isForwardToFinance =
+    data.currentRequiredRole === "SALES_MANAGER" &&
+    data.steps.some((s) => s.role === "FINANCE" && s.status === "PENDING");
+
   /**
-   * 1. Approve Quotation
+   * 1. Approve Quotation or Pass to Finance
    */
   async function handleApprove() {
     setLoading(true);
@@ -66,7 +93,68 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
     try {
       const res = await approveQuotationAction(data.quotationId);
       if (res.success) {
-        setStatusMessage({ type: "success", text: res.message || "Approved successfully!" });
+        setStatusMessage({ type: "success", text: res.message || "Action completed successfully!" });
+
+        const wasPassedToFinance = !res.isFinalApproval || isForwardToFinance;
+
+        if (wasPassedToFinance) {
+          setModalState({
+            isOpen: true,
+            type: "info",
+            title: "Quotation Passed to Finance",
+            description:
+              res.message ||
+              `Quotation ${data.displayCode} was endorsed by Sales Management and forwarded to Finance (R. Iyer) for final commercial sign-off.`,
+            details: [
+              { label: "Quotation Code", value: data.displayCode },
+              { label: "Customer", value: data.customerName },
+              {
+                label: "Risk Rating",
+                value: data.blendedRisk,
+                badge: "Passed to Finance",
+                badgeColor: "blue",
+              },
+              { label: "Next Approver", value: "Finance Approver (R. Iyer)" },
+              { label: "Workflow Status", value: "Pending Finance Review" },
+            ],
+            primaryAction: {
+              label: "Return to Approvals Queue",
+              href: "/approvals",
+            },
+            secondaryAction: {
+              label: "Stay on Page",
+              onClick: () => {},
+            },
+          });
+        } else {
+          setModalState({
+            isOpen: true,
+            type: "success",
+            title: "Quotation Approval Confirmed",
+            description:
+              res.message ||
+              `Quotation ${data.displayCode} has received final commercial approval and advanced in the workflow pipeline.`,
+            details: [
+              { label: "Quotation Code", value: data.displayCode },
+              { label: "Customer", value: data.customerName },
+              {
+                label: "Risk Rating",
+                value: data.blendedRisk,
+                badge: "Approved",
+                badgeColor: "emerald",
+              },
+              { label: "Next Stage", value: res.stage || "APPROVED" },
+            ],
+            primaryAction: {
+              label: "Return to Approvals Queue",
+              href: "/approvals",
+            },
+            secondaryAction: {
+              label: "Stay on Page",
+              onClick: () => {},
+            },
+          });
+        }
         router.refresh();
       } else {
         setStatusMessage({ type: "error", text: res.error || "Approval failed." });
@@ -95,6 +183,24 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
       if (res.success) {
         setStatusMessage({ type: "success", text: res.message || "Returned to rep." });
         setReturnModalOpen(false);
+        setModalState({
+          isOpen: true,
+          type: "warning",
+          title: "Quotation Returned for Revision",
+          description:
+            res.message ||
+            `Quotation ${data.displayCode} was returned to the sales representative with your revision notes.`,
+          details: [
+            { label: "Quotation Code", value: data.displayCode },
+            { label: "Customer", value: data.customerName },
+            { label: "Revision Note", value: returnNote.trim() },
+            { label: "New Status", value: "DRAFT", badge: "Returned", badgeColor: "amber" },
+          ],
+          primaryAction: {
+            label: "Return to Approvals Queue",
+            href: "/approvals",
+          },
+        });
         router.refresh();
       } else {
         setStatusMessage({ type: "error", text: res.error || "Failed to return." });
@@ -121,6 +227,23 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
       const res = await rejectQuotationAction(data.quotationId, "Rejected by approver");
       if (res.success) {
         setStatusMessage({ type: "success", text: res.message || "Quotation rejected." });
+        setModalState({
+          isOpen: true,
+          type: "error",
+          title: "Quotation Marked as Rejected",
+          description:
+            res.message ||
+            `Quotation ${data.displayCode} has been rejected and archived from active approval queues.`,
+          details: [
+            { label: "Quotation Code", value: data.displayCode },
+            { label: "Customer", value: data.customerName },
+            { label: "Status", value: "REJECTED", badge: "Archived", badgeColor: "neutral" },
+          ],
+          primaryAction: {
+            label: "Return to Approvals Queue",
+            href: "/approvals",
+          },
+        });
         router.refresh();
       } else {
         setStatusMessage({ type: "error", text: res.error || "Failed to reject." });
@@ -409,7 +532,20 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
         </div>
       </div>
 
-      {/* Action Buttons: Approve, Return for Revision, Reject OR Role Status Notice */}
+      {/* 2-Level Governance Explanatory Notice for Sales Manager */}
+      {data.canApprove && isForwardToFinance && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 text-xs text-blue-950 dark:text-blue-200 shadow-2xs">
+          <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-semibold text-sm block">Two-Level Governance Required (High Risk Overage &ge; 10pt)</span>
+            <p className="text-muted-foreground leading-relaxed">
+              This quotation contains excessive discounts exceeding standard managerial authority. As Sales Manager, you cannot grant final approval alone — your options are to <strong>Reject</strong>, <strong>Return for Revision</strong>, or <strong>Pass to Finance</strong> (R. Iyer) for final commercial review and sign-off.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons: Pass to Finance / Approve, Return for Revision, Reject OR Role Status Notice */}
       {data.canApprove ? (
         <div className="flex flex-wrap items-center justify-end gap-3 p-4 rounded-xl border border-border bg-card shadow-sm">
           <button
@@ -432,15 +568,35 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
             Return for Revision
           </button>
 
-          <button
-            type="button"
-            onClick={handleApprove}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-            Approve Quotation
-          </button>
+          {isForwardToFinance ? (
+            <button
+              type="button"
+              onClick={handleApprove}
+              disabled={loading}
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 transition-colors shadow-sm disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ArrowRight className="h-3.5 w-3.5" />
+              )}
+              Pass to Finance
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleApprove}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              )}
+              Approve Quotation
+            </button>
+          )}
         </div>
       ) : data.statusNotice ? (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-border/80 bg-muted/40 text-xs sm:text-sm text-muted-foreground shadow-2xs">
@@ -526,6 +682,18 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
           </div>
         </div>
       )}
+
+      {/* Action Feedback Popup Modal */}
+      <ActionFeedbackModal
+        isOpen={modalState.isOpen}
+        onClose={() => setModalState((prev) => ({ ...prev, isOpen: false }))}
+        type={modalState.type}
+        title={modalState.title}
+        description={modalState.description}
+        details={modalState.details}
+        primaryAction={modalState.primaryAction}
+        secondaryAction={modalState.secondaryAction}
+      />
     </div>
   );
 }

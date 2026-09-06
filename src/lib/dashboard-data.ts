@@ -7,6 +7,7 @@ import {
   FulfillmentStatus,
   InvoiceStatus,
 } from "@prisma/client";
+import { calculateLineDiscountLimit } from "@/lib/business-logic/discount-limits";
 
 export interface SummaryCardItem {
   id: string;
@@ -37,11 +38,40 @@ export interface RoleBadgeInfo {
   colorClass: string;
 }
 
+export interface ActiveNegotiationLine {
+  orderLineId: string;
+  productName: string;
+  originalDiscountPercent: number;
+  requestedDiscountPercent: number;
+  effectiveLimitPercent: number;
+  isOverLimit: boolean;
+  overagePoints: number;
+  commentText?: string | null;
+}
+
+export interface ActiveNegotiationItem {
+  id: string;
+  displayCode: string;
+  customerId: string;
+  customerName: string;
+  customerTier: string;
+  totalGross: number;
+  stage: string;
+  lines: ActiveNegotiationLine[];
+  latestComment?: string | null;
+  requestedDeliveryDate?: string | null;
+  requiresEscalation: boolean;
+  maxOveragePoints: number;
+  href: string;
+  updatedAt: string;
+}
+
 export interface DashboardData {
   roleBadge: RoleBadgeInfo;
   summaryCards: SummaryCardItem[];
   quickActions: DashboardQuickAction[];
   recentActivities: RecentActivityItem[];
+  activeNegotiations: ActiveNegotiationItem[];
 }
 
 export interface UserContext {
@@ -430,11 +460,138 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
     console.warn("Could not query DB audit logs, using spec defaults:", error);
   }
 
-  if (recentActivities.length === 0) {
-    recentActivities = canonicalActivities;
-  } else if (recentActivities.length < 3) {
-    const needed = 3 - recentActivities.length;
-    recentActivities = [...recentActivities, ...canonicalActivities.slice(0, needed)];
+  // 4. Active Customer Negotiations (surfaced for Rep, Manager, Finance)
+  let activeNegotiations: ActiveNegotiationItem[] = [];
+
+  try {
+    const negotiationQuotes = await prisma.quotation.findMany({
+      where: {
+        stage: QuotationStage.NEGOTIATION,
+        ...(role === UserRole.REP && userId ? { ownerRepId: userId } : {}),
+      },
+      include: {
+        customer: true,
+        orderLines: {
+          include: { product: true },
+        },
+        negotiationComments: {
+          orderBy: { createdAt: "desc" },
+        },
+      },
+      orderBy: { lastActivityAt: "desc" },
+      take: 6,
+    });
+
+    // Fallback for Rep if none found under specific ownerRepId (e.g. testing with another user)
+    let quotesToProcess = negotiationQuotes;
+    if (quotesToProcess.length === 0 && role === UserRole.REP) {
+      quotesToProcess = await prisma.quotation.findMany({
+        where: { stage: QuotationStage.NEGOTIATION },
+        include: {
+          customer: true,
+          orderLines: { include: { product: true } },
+          negotiationComments: { orderBy: { createdAt: "desc" } },
+        },
+        orderBy: { lastActivityAt: "desc" },
+        take: 6,
+      });
+    }
+
+    activeNegotiations = quotesToProcess.map((q) => {
+      let totalGross = 0;
+      const lines: ActiveNegotiationLine[] = [];
+      let latestReqDate: string | null = null;
+      let hasOverLimit = false;
+      let maxOverage = 0;
+
+      // Extract line items that have customer counter requests
+      for (const line of q.orderLines) {
+        const lineGross = Number(line.unitPrice) * line.quantity;
+        totalGross += lineGross;
+
+        // Find customer counter discount comment for this line
+        const comment = q.negotiationComments.find(
+          (c) => c.orderLineId === line.id && c.counterDiscountPercent !== null && c.counterDiscountPercent !== undefined
+        );
+
+        if (comment && comment.counterDiscountPercent !== null) {
+          const reqDisc = Number(comment.counterDiscountPercent);
+          const origDisc = Number(line.discountPercent);
+
+          const limitCalc = calculateLineDiscountLimit({
+            customerTier: q.customer.tier,
+            productCategory: line.product.category,
+            discountPercent: reqDisc,
+          });
+
+          const overage = Math.max(0, reqDisc - limitCalc.effectiveLimitPercent);
+          if (overage > 0) {
+            hasOverLimit = true;
+            if (overage > maxOverage) maxOverage = overage;
+          }
+
+          lines.push({
+            orderLineId: line.id,
+            productName: line.product.name,
+            originalDiscountPercent: origDisc,
+            requestedDiscountPercent: reqDisc,
+            effectiveLimitPercent: limitCalc.effectiveLimitPercent,
+            isOverLimit: limitCalc.isOverLimit,
+            overagePoints: overage,
+            commentText: comment.commentText,
+          });
+        }
+      }
+
+      // If no line-specific comment was matched, include lines with current limits
+      if (lines.length === 0) {
+        for (const line of q.orderLines) {
+          const origDisc = Number(line.discountPercent);
+          const limitCalc = calculateLineDiscountLimit({
+            customerTier: q.customer.tier,
+            productCategory: line.product.category,
+            discountPercent: origDisc,
+          });
+          lines.push({
+            orderLineId: line.id,
+            productName: line.product.name,
+            originalDiscountPercent: origDisc,
+            requestedDiscountPercent: origDisc,
+            effectiveLimitPercent: limitCalc.effectiveLimitPercent,
+            isOverLimit: limitCalc.isOverLimit,
+            overagePoints: Math.max(0, origDisc - limitCalc.effectiveLimitPercent),
+            commentText: null,
+          });
+        }
+      }
+
+      for (const c of q.negotiationComments) {
+        if (c.requestedDeliveryDate && !latestReqDate) {
+          latestReqDate = c.requestedDeliveryDate.toISOString();
+        }
+      }
+
+      const latestComment = q.negotiationComments[0]?.commentText || null;
+
+      return {
+        id: q.id,
+        displayCode: q.displayCode,
+        customerId: q.customerId,
+        customerName: q.customer.name,
+        customerTier: q.customer.tier,
+        totalGross,
+        stage: q.stage,
+        lines,
+        latestComment,
+        requestedDeliveryDate: latestReqDate,
+        requiresEscalation: hasOverLimit,
+        maxOveragePoints: maxOverage,
+        href: `/quotations/${q.id}`,
+        updatedAt: q.lastActivityAt ? q.lastActivityAt.toLocaleDateString() : "",
+      };
+    });
+  } catch (err) {
+    console.warn("Could not load active negotiations:", err);
   }
 
   return {
@@ -442,5 +599,6 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
     summaryCards,
     quickActions,
     recentActivities,
+    activeNegotiations,
   };
 }
