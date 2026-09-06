@@ -9,9 +9,9 @@ export function ThemeToggle() {
 
   useEffect(() => {
     setMounted(true);
-    // Check saved theme or system preference
-    const saved = localStorage.getItem("dealflow-theme");
-    if (saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+    // Check saved theme - default to light
+    const saved = localStorage.getItem("dealflow-theme") || localStorage.getItem("theme");
+    if (saved === "dark") {
       setTheme("dark");
       document.documentElement.classList.add("dark");
     } else {
@@ -24,6 +24,7 @@ export function ThemeToggle() {
     const nextTheme = theme === "light" ? "dark" : "light";
     setTheme(nextTheme);
     localStorage.setItem("dealflow-theme", nextTheme);
+    localStorage.setItem("theme", nextTheme);
 
     if (nextTheme === "dark") {
       document.documentElement.classList.add("dark");
