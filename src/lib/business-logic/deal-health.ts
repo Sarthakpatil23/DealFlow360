@@ -37,7 +37,10 @@ export interface DealHealthMetrics {
  * 2. Discount Anomaly: Quote discount significantly above rep's personal historical average.
  * 3. Delivery Slippage: Physical fulfillment backordered or delayed.
  */
-export async function evaluateDealHealth(): Promise<DealHealthMetrics> {
+export async function evaluateDealHealth(options?: {
+  role?: string;
+  repId?: string;
+}): Promise<DealHealthMetrics> {
   const quotations = await prisma.quotation.findMany({
     include: {
       customer: true,
@@ -76,6 +79,11 @@ export async function evaluateDealHealth(): Promise<DealHealthMetrics> {
   const alerts: DealHealthItem[] = [];
 
   for (const q of quotations) {
+    // If role is REP, only evaluate quotes owned by this rep
+    if (options?.role === "REP" && options?.repId && q.ownerRepId !== options.repId) {
+      continue;
+    }
+
     const totalValue = q.orderLines.reduce((acc, l) => {
       const gross = Number(l.unitPrice) * l.quantity;
       const disc = gross * (Number(l.discountPercent) / 100);
@@ -186,6 +194,9 @@ export async function evaluateDealHealth(): Promise<DealHealthMetrics> {
   });
 
   for (const dbA of dbAlerts) {
+    if (options?.role === "REP" && options?.repId && dbA.quotation?.ownerRepId !== options.repId) {
+      continue;
+    }
     const alreadyIncluded = alerts.some((a) => a.quotationId === dbA.quotationId && a.type === dbA.type);
     if (!alreadyIncluded && dbA.quotation) {
       const total = dbA.quotation.orderLines.reduce((acc, l) => {

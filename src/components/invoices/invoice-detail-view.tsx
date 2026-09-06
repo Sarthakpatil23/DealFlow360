@@ -134,7 +134,7 @@ Thank you for doing business with DealFlow360!
 
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-[#171717] dark:text-[#ededed]">
-              Screen 13 — Invoice Detail ({invoice.displayCode})
+              Invoice Detail ({invoice.displayCode})
             </h1>
 
             {isPaid ? (
@@ -195,7 +195,7 @@ Thank you for doing business with DealFlow360!
       <div className="bg-sky-50 dark:bg-sky-950/25 border border-sky-200 dark:border-sky-800/60 rounded-xl p-4 flex items-start gap-3">
         <Sparkles className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
         <div className="text-xs text-sky-900 dark:text-sky-200 space-y-0.5">
-          <span className="font-bold block">Partial Invoicing Rule (project.md Screen 13):</span>
+          <span className="font-bold block">Partial Invoicing Rule:</span>
           <p>
             &quot;Partial invoicing stays reconciled with partial delivery, nothing is billed before it ships.&quot;
             An invoice for physical goods is only generated once that portion of the order has actually shipped from a warehouse.

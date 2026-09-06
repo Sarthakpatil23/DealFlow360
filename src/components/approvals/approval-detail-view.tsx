@@ -276,7 +276,7 @@ export function ApprovalDetailView({ initialData }: ApprovalDetailViewProps) {
 
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-[#171717] dark:text-[#ededed]">
-              Screen 6 — Approval Detail ({data.displayCode})
+              Approval Detail ({data.displayCode})
             </h1>
             <span
               className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold ${

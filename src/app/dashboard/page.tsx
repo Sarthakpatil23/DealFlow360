@@ -90,49 +90,13 @@ export default async function SalesDashboardPage({
               </p>
             </div>
 
-            <div className="flex flex-col sm:items-end gap-1.5 self-start sm:self-auto">
+            <div className="flex items-center self-start sm:self-auto">
               {session?.user && (
                 <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
                   {session.user.name || session.user.email} ({effectiveRole})
                 </span>
               )}
-              {/* Clean, subtle tab switcher for testing different roles side-by-side in different tabs */}
-              <div className="flex items-center gap-1.5 text-[11px] text-[#737373] dark:text-[#a1a1a1]">
-                <span className="text-[10px] uppercase tracking-wider text-[#a1a1a1] dark:text-[#737373]">View as:</span>
-                <Link
-                  href="/dashboard?role=REP"
-                  className={`px-1.5 py-0.5 rounded transition-colors ${
-                    effectiveRole === UserRole.REP
-                      ? "font-semibold text-[#171717] dark:text-[#ededed] bg-neutral-200/70 dark:bg-neutral-800"
-                      : "hover:text-[#171717] dark:hover:text-[#ededed]"
-                  }`}
-                >
-                  Rep
-                </Link>
-                <span>·</span>
-                <Link
-                  href="/dashboard?role=MANAGER"
-                  className={`px-1.5 py-0.5 rounded transition-colors ${
-                    effectiveRole === UserRole.MANAGER
-                      ? "font-semibold text-[#171717] dark:text-[#ededed] bg-neutral-200/70 dark:bg-neutral-800"
-                      : "hover:text-[#171717] dark:hover:text-[#ededed]"
-                  }`}
-                >
-                  Manager
-                </Link>
-                <span>·</span>
-                <Link
-                  href="/dashboard?role=FINANCE"
-                  className={`px-1.5 py-0.5 rounded transition-colors ${
-                    effectiveRole === UserRole.FINANCE
-                      ? "font-semibold text-[#171717] dark:text-[#ededed] bg-neutral-200/70 dark:bg-neutral-800"
-                      : "hover:text-[#171717] dark:hover:text-[#ededed]"
-                  }`}
-                >
-                  Finance
-                </Link>
-              </div>
             </div>
           </div>
         </header>

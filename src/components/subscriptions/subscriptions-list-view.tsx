@@ -122,7 +122,7 @@ export function SubscriptionsListView({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#ebebeb] dark:border-[#262626] pb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#171717] dark:text-[#ededed]">
-            Screen 9 — Subscriptions
+            Subscriptions
           </h1>
           <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
             Every recurring plan across every customer, regardless of which original order it came from.

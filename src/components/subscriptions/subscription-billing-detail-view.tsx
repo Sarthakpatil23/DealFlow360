@@ -191,7 +191,7 @@ export function SubscriptionBillingDetailView({ initialData }: Props) {
 
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-[#171717] dark:text-[#ededed]">
-              Screen 10 — Billing Detail ({data.customerName})
+              Billing Detail ({data.customerName})
             </h1>
 
             {data.status === "ACTIVE" && (

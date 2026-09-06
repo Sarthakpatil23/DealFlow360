@@ -21,21 +21,26 @@ import { nudgeRepAction, escalateDealAction } from "@/app/actions/deal-health-ac
 
 interface Props {
   initialData: DealHealthMetrics;
+  currentUserRole?: string;
+  currentUserName?: string;
 }
 
-export function DealHealthView({ initialData }: Props) {
+export function DealHealthView({ initialData, currentUserRole, currentUserName }: Props) {
   const router = useRouter();
   const [data, setData] = useState(initialData);
   const [filterType, setFilterType] = useState<"ALL" | "STALLED" | "DISCOUNT_ANOMALY" | "DELIVERY_SLIPPAGE">("ALL");
   const [actingAlertId, setActingAlertId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  const isManagerOrAdmin = currentUserRole === "MANAGER" || currentUserRole === "ADMIN";
+  const isRep = currentUserRole === "REP";
+
   const filteredAlerts = data.alerts.filter((a) => {
     if (filterType === "ALL") return true;
     return a.type === filterType;
   });
 
-  // Handle Nudge
+  // Handle Nudge (Manager / Admin only)
   async function handleNudge(alert: DealHealthItem) {
     setActingAlertId(alert.quotationId);
     setNotification(null);
@@ -55,7 +60,7 @@ export function DealHealthView({ initialData }: Props) {
     }
   }
 
-  // Handle Escalate
+  // Handle Escalate (Manager / Admin only)
   async function handleEscalate(alert: DealHealthItem) {
     setActingAlertId(alert.quotationId);
     setNotification(null);
@@ -80,11 +85,20 @@ export function DealHealthView({ initialData }: Props) {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#ebebeb] dark:border-[#262626] pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#171717] dark:text-[#ededed]">
-            Screen 14 — Deal Health & Anomaly Dashboard
-          </h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold tracking-tight text-[#171717] dark:text-[#ededed]">
+              Deal Health & Anomaly Dashboard
+            </h1>
+            {isRep && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                My Deals View
+              </span>
+            )}
+          </div>
           <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-            Catch problems before they quietly kill a deal or blow up margins, without manual babysitting.
+            {isRep
+              ? "Track health metrics for your active quotations, catch stalled deals, and resolve discount or delivery risks."
+              : "Catch problems before they quietly kill a deal or blow up margins, without manual babysitting."}
           </p>
         </div>
 
@@ -132,7 +146,7 @@ export function DealHealthView({ initialData }: Props) {
             {data.stalledCount}
           </div>
           <p className="text-xs text-neutral-500 mt-1">
-            Quotes idle 7+ days with no recent activity
+            {isRep ? "Your quotes idle 7+ days with no recent activity" : "Quotes idle 7+ days with no recent activity"}
           </p>
         </div>
 
@@ -157,7 +171,7 @@ export function DealHealthView({ initialData }: Props) {
             {data.anomaliesCount}
           </div>
           <p className="text-xs text-neutral-500 mt-1">
-            Quotes significantly above rep personal average
+            {isRep ? "Your quotes exceeding historical discount baseline" : "Quotes significantly above rep personal average"}
           </p>
         </div>
 
@@ -182,7 +196,7 @@ export function DealHealthView({ initialData }: Props) {
             {data.slippageCount}
           </div>
           <p className="text-xs text-neutral-500 mt-1">
-            Confirmed orders with backorders or delays
+            {isRep ? "Your confirmed orders with backorders or delays" : "Confirmed orders with backorders or delays"}
           </p>
         </div>
       </div>
@@ -242,17 +256,17 @@ export function DealHealthView({ initialData }: Props) {
               <tr>
                 <th className="py-3 px-4">Deal / Account</th>
                 <th className="py-3 px-4">Issue Description</th>
-                <th className="py-3 px-4">Sales Rep</th>
+                {!isRep && <th className="py-3 px-4">Sales Rep</th>}
                 <th className="py-3 px-4">Flagged</th>
-                <th className="py-3 px-4">Action Taken</th>
-                <th className="py-3 px-4 text-right">Intervention</th>
+                <th className="py-3 px-4">{isRep ? "Status" : "Action Taken"}</th>
+                <th className="py-3 px-4 text-right">{isRep ? "Action" : "Intervention"}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200 dark:border-neutral-800">
               {filteredAlerts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-neutral-400">
-                    No active anomalies detected under this filter. All deals healthy.
+                  <td colSpan={isRep ? 5 : 6} className="py-12 text-center text-neutral-400">
+                    No active anomalies detected under this filter. All {isRep ? "your " : ""}deals healthy.
                   </td>
                 </tr>
               ) : (
@@ -298,9 +312,11 @@ export function DealHealthView({ initialData }: Props) {
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 font-medium text-neutral-700 dark:text-neutral-300">
-                        {alert.ownerRepName}
-                      </td>
+                      {!isRep && (
+                        <td className="py-3.5 px-4 font-medium text-neutral-700 dark:text-neutral-300">
+                          {alert.ownerRepName}
+                        </td>
+                      )}
 
                       <td className="py-3.5 px-4 font-mono text-neutral-500">
                         {alert.flaggedDate}
@@ -309,37 +325,46 @@ export function DealHealthView({ initialData }: Props) {
                       <td className="py-3.5 px-4">
                         {alert.actionTaken === "NUDGE_SENT" && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400">
-                            <BellRing className="w-3 h-3" /> Nudge sent
+                            <BellRing className="w-3 h-3" /> {isRep ? "Manager Nudge Received" : "Nudge sent"}
                           </span>
                         )}
                         {alert.actionTaken === "ESCALATED" && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700 dark:text-rose-400">
-                            <ArrowUpRight className="w-3 h-3" /> Escalated to Manager
+                            <ArrowUpRight className="w-3 h-3" /> {isRep ? "Escalated by Management" : "Escalated to Manager"}
                           </span>
                         )}
                         {alert.actionTaken === "NONE" && (
-                          <span className="text-neutral-400 italic">None yet</span>
+                          <span className="text-neutral-400 italic">{isRep ? "Attention Recommended" : "None yet"}</span>
                         )}
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <button
-                            disabled={isActing}
-                            onClick={() => handleNudge(alert)}
-                            className="px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 font-semibold text-[11px] transition-colors"
-                          >
-                            {isActing ? <Loader2 className="w-3 h-3 animate-spin" /> : "Nudge Rep"}
-                          </button>
+                        {isManagerOrAdmin ? (
+                          <div className="inline-flex items-center gap-2">
+                            <button
+                              disabled={isActing}
+                              onClick={() => handleNudge(alert)}
+                              className="px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 font-semibold text-[11px] transition-colors"
+                            >
+                              {isActing ? <Loader2 className="w-3 h-3 animate-spin" /> : "Nudge Rep"}
+                            </button>
 
-                          <button
-                            disabled={isActing}
-                            onClick={() => handleEscalate(alert)}
-                            className="px-2.5 py-1 rounded-md bg-neutral-900 text-white dark:bg-white dark:text-black font-semibold text-[11px] hover:opacity-90 transition-opacity"
+                            <button
+                              disabled={isActing}
+                              onClick={() => handleEscalate(alert)}
+                              className="px-2.5 py-1 rounded-md bg-neutral-900 text-white dark:bg-white dark:text-black font-semibold text-[11px] hover:opacity-90 transition-opacity"
+                            >
+                              Escalate
+                            </button>
+                          </div>
+                        ) : (
+                          <Link
+                            href={`/quotations/${alert.quotationId}`}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-[#171717] dark:bg-[#ededed] text-white dark:text-[#171717] hover:opacity-90 font-semibold text-[11px] transition-opacity shadow-xs"
                           >
-                            Escalate
-                          </button>
-                        </div>
+                            View & Resolve <ArrowRight className="w-3 h-3" />
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   );

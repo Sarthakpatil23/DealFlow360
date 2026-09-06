@@ -74,7 +74,7 @@ export function SessionCard({ user }: SessionCardProps) {
           href="/dashboard"
           className="w-full inline-flex items-center justify-center rounded-[6px] bg-primary text-primary-foreground py-2 text-xs font-medium hover:bg-primary/90 transition-colors shadow-xs"
         >
-          Enter Sales Dashboard (Screen 2) →
+          Enter Sales Dashboard →
         </Link>
 
         <form action={logoutAction}>

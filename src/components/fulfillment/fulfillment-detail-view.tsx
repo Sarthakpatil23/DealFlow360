@@ -191,7 +191,7 @@ export function FulfillmentDetailView({ initialData }: FulfillmentDetailViewProp
           </div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-[#171717] dark:text-[#ededed]">
-              Screen 8 — Fulfillment Detail ({data.displayCode})
+              Fulfillment Detail ({data.displayCode})
             </h1>
             <span
               className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold ${

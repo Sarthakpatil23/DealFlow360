@@ -28,7 +28,7 @@ export const CANONICAL_PERSONAS: PersonaOption[] = [
   {
     name: "J. Rao",
     roleTitle: "Sales Rep",
-    email: "rep.rao@dealflow.com",
+    email: "jrao@dealflow.com",
     roleKey: "REP",
     badgeClass: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
     description: "Builds deals, discounts, responds to customer counter-offers",
@@ -63,7 +63,7 @@ export const CANONICAL_PERSONAS: PersonaOption[] = [
     email: "procurement@acme.com",
     roleKey: "CUSTOMER",
     badgeClass: "bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/20",
-    description: "Screen 11 negotiation portal, counter-discounts & live orders",
+    description: "Customer negotiation portal, counter-discounts & live orders",
   },
 ];
 
@@ -100,6 +100,9 @@ export function PersonaSwitcher({
     CANONICAL_PERSONAS.find(
       (p) =>
         p.email.toLowerCase() === currentUserEmail?.toLowerCase() ||
+        (p.email === "jrao@dealflow.com" &&
+          (currentUserEmail?.toLowerCase() === "rep.rao@dealflow.com" ||
+            currentUserEmail?.toLowerCase() === "jrao@dealflow.com")) ||
         p.roleKey === currentUserRole
     ) || CANONICAL_PERSONAS[0];
 
@@ -113,51 +116,49 @@ export function PersonaSwitcher({
     setIsOpen(false);
 
     startTransition(async () => {
-      await switchPersonaAction(persona.email, pathname);
+      try {
+        await switchPersonaAction(persona.email, pathname);
+      } catch (err: any) {
+        if (err?.message?.includes("NEXT_REDIRECT")) {
+          return;
+        }
+        console.error("Failed to switch persona:", err);
+        setSwitchingEmail(null);
+      }
     });
   }
 
   function getIconForRole(roleKey: string) {
     switch (roleKey) {
       case "MANAGER":
-        return <Briefcase className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />;
+        return <Briefcase className="w-4 h-4 text-[#4d4d4d] dark:text-[#a1a1a1]" />;
       case "FINANCE":
-        return <DollarSign className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />;
+        return <DollarSign className="w-4 h-4 text-[#4d4d4d] dark:text-[#a1a1a1]" />;
       case "ADMIN":
-        return <Shield className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />;
+        return <Shield className="w-4 h-4 text-[#4d4d4d] dark:text-[#a1a1a1]" />;
       case "CUSTOMER":
-        return <Building2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />;
+        return <Building2 className="w-4 h-4 text-[#4d4d4d] dark:text-[#a1a1a1]" />;
       default:
-        return <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />;
+        return <User className="w-4 h-4 text-[#4d4d4d] dark:text-[#a1a1a1]" />;
     }
   }
 
   return (
     <div className="relative inline-block text-left" ref={containerRef}>
-      {/* Trigger Button */}
+      {/* Trigger Button: Exactly matching ThemeToggle size and aesthetic */}
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         disabled={isPending}
-        className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border bg-card hover:bg-muted/70 text-xs font-medium text-foreground transition-all shadow-2xs hover:shadow-xs"
-        title="Switch active user persona (project.md)"
+        aria-label={`Switch persona. Current: ${activePersona.name} (${activePersona.roleTitle})`}
+        title={`Active Persona: ${activePersona.name} (${activePersona.roleTitle}) — Click to switch`}
+        className="p-1.5 rounded-md border border-[#ebebeb] dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-[#4d4d4d] dark:text-[#a1a1a1] hover:text-[#171717] dark:hover:text-white hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors focus:outline-none focus:ring-2 focus:ring-[#0070f3] flex items-center justify-center shrink-0 cursor-pointer"
       >
         {isPending ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+          <Loader2 className="w-4 h-4 animate-spin text-primary" />
         ) : (
           getIconForRole(activePersona.roleKey)
         )}
-
-        <div className="flex items-center gap-1.5 text-left">
-          <span className="font-semibold">{activePersona.name}</span>
-          <span
-            className={`hidden sm:inline-block text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border ${activePersona.badgeClass}`}
-          >
-            {activePersona.roleTitle}
-          </span>
-        </div>
-
-        <ChevronDown className="w-3 h-3 text-muted-foreground ml-0.5" />
       </button>
 
       {/* Dropdown Menu */}

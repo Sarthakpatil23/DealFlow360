@@ -186,7 +186,7 @@ export function ReportsDashboardView({ initialQuotes, reps }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#ebebeb] dark:border-[#262626] pb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#171717] dark:text-[#ededed]">
-            Screen 15 — Admin / Reporting Dashboard
+            Admin / Reporting Dashboard
           </h1>
           <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
             Company-wide operational analytics, filterable business metrics, and filtered data exports.

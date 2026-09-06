@@ -24,7 +24,7 @@ export function ApprovalsListView({ initialData }: ApprovalsListViewProps) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#ebebeb] dark:border-[#262626] pb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#171717] dark:text-[#ededed]">
-            Screen 5 — Approvals List
+            Approvals List
           </h1>
           <p className="text-xs sm:text-sm text-[#737373] dark:text-[#a1a1a1] mt-1">
             Quotation discount approval queue and multi-tier chain governance
@@ -37,7 +37,7 @@ export function ApprovalsListView({ initialData }: ApprovalsListViewProps) {
             className="inline-flex items-center gap-1.5 border border-[#ebebeb] dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-[#171717] dark:text-[#ededed] hover:bg-neutral-50 dark:hover:bg-[#171717] px-3.5 py-2 rounded-lg text-xs font-medium transition-colors"
           >
             <Sliders className="h-3.5 w-3.5 text-[#737373]" />
-            Discount Rules (Screen 18)
+            Discount Rules
           </Link>
         </div>
       </div>

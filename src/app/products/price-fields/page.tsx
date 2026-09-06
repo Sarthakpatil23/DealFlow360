@@ -37,7 +37,7 @@ export default function PriceFieldsPage() {
             <Link href="/products" className="text-[#0070f3] underline">
               Back to Product Catalog
             </Link>{" "}
-            to return to Screen 16.
+            to return to the catalog.
           </p>
         </div>
       </main>

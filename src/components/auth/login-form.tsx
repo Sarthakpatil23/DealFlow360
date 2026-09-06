@@ -118,7 +118,7 @@ export function LoginForm() {
           <Info className="h-4 w-4 text-neutral-700 mt-0.5 flex-shrink-0" />
           <div className="space-y-1">
             <span className="font-semibold text-neutral-900 block">
-              Unified Role-Aware Access Hub (Screen 1)
+              Unified Role-Aware Access Hub
             </span>
             <p className="text-neutral-500 leading-relaxed">
               Upon authentication, internal staff (

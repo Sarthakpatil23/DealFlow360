@@ -155,7 +155,10 @@ export async function logoutAction() {
  * complete approval and customer negotiation lifecycle (project.md).
  */
 export async function switchPersonaAction(targetEmail: string, redirectUrl?: string) {
-  const normalizedEmail = targetEmail.trim().toLowerCase();
+  let normalizedEmail = targetEmail.trim().toLowerCase();
+  if (normalizedEmail === "rep.rao@dealflow.com" || normalizedEmail === "rao@dealflow.com") {
+    normalizedEmail = "jrao@dealflow.com";
+  }
 
   // Determine appropriate redirect destination
   let destination = redirectUrl;
@@ -177,10 +180,18 @@ export async function switchPersonaAction(targetEmail: string, redirectUrl?: str
     destination = "/portal";
   }
 
-  await signIn("credentials", {
-    email: normalizedEmail,
-    password: "password123",
-    redirectTo: destination,
-  });
+  try {
+    await signIn("credentials", {
+      email: normalizedEmail,
+      password: "password123",
+      redirectTo: destination,
+    });
+  } catch (error) {
+    if ((error as any)?.message?.includes("NEXT_REDIRECT")) {
+      throw error;
+    }
+    console.error("switchPersonaAction error:", error);
+    throw error;
+  }
 }
 

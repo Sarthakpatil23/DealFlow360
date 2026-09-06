@@ -673,16 +673,19 @@ async function main() {
           },
         ],
       },
-      negotiationComments: {
-        create: [
-          {
-            orderLineId: undefined,
-            commentText: "Could we increase the UltraBook discount to 12% for this 5-unit bundle?",
-            counterDiscountPercent: 12.0,
-            createdAt: new Date(Date.now() - 1 * 86400000),
-          },
-        ],
-      },
+    },
+    include: { orderLines: true },
+  });
+
+  const ultraBookLine = q1041.orderLines.find((l) => l.productId === ultraBook16.id);
+
+  await prisma.negotiationComment.create({
+    data: {
+      quotationId: q1041.id,
+      orderLineId: ultraBookLine?.id || null,
+      commentText: "Could we increase the UltraBook discount to 12% for this 5-unit bundle?",
+      counterDiscountPercent: 12.0,
+      createdAt: new Date(Date.now() - 1 * 86400000),
     },
   });
 

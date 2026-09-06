@@ -38,7 +38,7 @@ export default async function DiscountApprovalSetupPage() {
               Discount tiers and approval chain setup
             </h1>
             <p className="text-xs sm:text-sm text-[#737373] dark:text-[#a1a1a1] mt-1">
-              Admin control panel for discount governance and approval chain thresholds (Screen 18)
+              Admin control panel for discount governance and approval chain thresholds
             </p>
           </div>
 

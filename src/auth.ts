@@ -20,7 +20,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        const email = (credentials.email as string).trim().toLowerCase();
+        let email = (credentials.email as string).trim().toLowerCase();
+        if (email === "rep.rao@dealflow.com" || email === "rao@dealflow.com") {
+          email = "jrao@dealflow.com";
+        }
         const password = credentials.password as string;
 
         // 1. Check internal staff User

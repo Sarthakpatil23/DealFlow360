@@ -23,6 +23,11 @@ export interface RecentActivityItem {
   href: string;
   targetScreen?: string;
   timestamp?: string;
+  action?: string;
+  actorName?: string;
+  customerName?: string;
+  quoteCode?: string;
+  note?: string;
 }
 
 export interface DashboardQuickAction {
@@ -373,19 +378,19 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
       id: "activity-canonical-1",
       text: "Acme Corp quotation approved by Finance",
       href: "/approvals/Q-1042",
-      targetScreen: "Screen 6 — Approval Detail",
+      targetScreen: "Approval Detail",
     },
     {
       id: "activity-canonical-2",
       text: "Beta Industries requested a discount change",
       href: "/quotations/Q-1039",
-      targetScreen: "Screen 4 / Screen 11 — Quotation Negotiation",
+      targetScreen: "Quotation Negotiation",
     },
     {
       id: "activity-canonical-3",
       text: "East Depot stock updated for Order #2291",
       href: "/fulfillment",
-      targetScreen: "Screen 7 — Fulfillment and Stock",
+      targetScreen: "Fulfillment and Stock",
     },
   ];
 
@@ -397,9 +402,9 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
       auditWhere.quotation = { ownerRepId: userId };
     }
 
-    const dbAuditLogs = await prisma.auditLogEntry.findMany({
+    let dbAuditLogs = await prisma.auditLogEntry.findMany({
       where: Object.keys(auditWhere).length > 0 ? auditWhere : undefined,
-      take: 5,
+      take: 6,
       orderBy: { createdAt: "desc" },
       include: {
         quotation: {
@@ -409,6 +414,20 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
       },
     });
 
+    // Fallback if no rep-specific logs yet
+    if (dbAuditLogs.length === 0) {
+      dbAuditLogs = await prisma.auditLogEntry.findMany({
+        take: 6,
+        orderBy: { createdAt: "desc" },
+        include: {
+          quotation: {
+            include: { customer: true },
+          },
+          actorUser: true,
+        },
+      });
+    }
+
     if (dbAuditLogs && dbAuditLogs.length > 0) {
       recentActivities = dbAuditLogs.map((log) => {
         const customerName = log.quotation?.customer?.name || "Acme Corp";
@@ -417,33 +436,33 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
 
         let text = `${customerName} (${quoteCode}) activity logged: ${log.action}`;
         let href = `/approvals/${quoteCode}`;
-        let targetScreen = "Screen 6 — Approval Detail";
+        let targetScreen = "Approval Detail";
 
         switch (log.action) {
           case "APPROVED":
             text = `${customerName} quotation approved by ${actorName}`;
             href = `/approvals/${quoteCode}`;
-            targetScreen = "Screen 6 — Approval Detail";
+            targetScreen = "Approval Detail";
             break;
           case "RETURNED_FOR_REVISION":
             text = `${customerName} quotation returned for revision by ${actorName}`;
             href = `/quotations/${quoteCode}`;
-            targetScreen = "Screen 4 — Quotation Detail";
+            targetScreen = "Quotation Detail";
             break;
           case "RESUBMITTED":
             text = `${customerName} quotation resubmitted by ${actorName}`;
             href = `/approvals/${quoteCode}`;
-            targetScreen = "Screen 6 — Approval Detail";
+            targetScreen = "Approval Detail";
             break;
           case "SUBMITTED":
             text = `${customerName} quotation submitted for approval by ${actorName}`;
             href = `/approvals/${quoteCode}`;
-            targetScreen = "Screen 6 — Approval Detail";
+            targetScreen = "Approval Detail";
             break;
           case "REJECTED":
             text = `${customerName} quotation rejected by ${actorName}`;
             href = `/approvals/${quoteCode}`;
-            targetScreen = "Screen 6 — Approval Detail";
+            targetScreen = "Approval Detail";
             break;
         }
 
@@ -453,6 +472,11 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
           href,
           targetScreen,
           timestamp: log.createdAt.toISOString(),
+          action: log.action,
+          actorName,
+          customerName,
+          quoteCode,
+          note: log.note || undefined,
         };
       });
     }
@@ -509,9 +533,16 @@ export async function getDashboardData(user?: UserContext): Promise<DashboardDat
         const lineGross = Number(line.unitPrice) * line.quantity;
         totalGross += lineGross;
 
-        // Find customer counter discount comment for this line
+        // Find customer counter discount comment for this line (match by orderLineId or product keyword)
         const comment = q.negotiationComments.find(
-          (c) => c.orderLineId === line.id && c.counterDiscountPercent !== null && c.counterDiscountPercent !== undefined
+          (c) =>
+            (c.orderLineId === line.id ||
+              (!c.orderLineId &&
+                c.commentText &&
+                line.product.name &&
+                c.commentText.toLowerCase().includes(line.product.name.toLowerCase().split(" ")[0]))) &&
+            c.counterDiscountPercent !== null &&
+            c.counterDiscountPercent !== undefined
         );
 
         if (comment && comment.counterDiscountPercent !== null) {

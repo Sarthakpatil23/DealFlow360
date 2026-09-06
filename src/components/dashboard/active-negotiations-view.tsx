@@ -49,7 +49,7 @@ export function ActiveNegotiationsView({
           </span>
         </div>
         <div className="rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 p-8 text-center text-xs text-neutral-500 dark:text-neutral-400">
-          No quotations are currently under customer negotiation. When a customer counters on Screen 11, their proposed discounts and notes will appear here immediately.
+          No quotations are currently under customer negotiation. When a customer submits a counter-proposal, their proposed discounts and notes will appear here immediately.
         </div>
       </section>
     );
@@ -155,19 +155,27 @@ export function ActiveNegotiationsView({
                         {l.productName}
                       </span>
                       <div className="flex items-center gap-2 font-mono">
-                        <span className="text-neutral-400 line-through text-[11px]">
-                          {l.originalDiscountPercent}%
-                        </span>
-                        <span className="text-neutral-400">→</span>
-                        <span
-                          className={`font-bold ${
-                            l.isOverLimit
-                              ? "text-amber-600 dark:text-amber-400"
-                              : "text-emerald-600 dark:text-emerald-400"
-                          }`}
-                        >
-                          {l.requestedDiscountPercent}% ask
-                        </span>
+                        {l.originalDiscountPercent !== l.requestedDiscountPercent ? (
+                          <>
+                            <span className="text-neutral-400 line-through text-[11px]">
+                              {l.originalDiscountPercent}%
+                            </span>
+                            <span className="text-neutral-400">→</span>
+                            <span
+                              className={`font-bold ${
+                                l.isOverLimit
+                                  ? "text-amber-600 dark:text-amber-400"
+                                  : "text-emerald-600 dark:text-emerald-400"
+                              }`}
+                            >
+                              {l.requestedDiscountPercent}% ask
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground text-xs font-medium">
+                            {l.originalDiscountPercent}% (current)
+                          </span>
+                        )}
                         <span className="text-[10px] text-neutral-400">
                           (limit {l.effectiveLimitPercent}%)
                         </span>
